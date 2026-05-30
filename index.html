@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="manifest" href="manifiesto.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tiendas 2026">
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Tiendas 2026 · Live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0f172a;--surf:#1e293b;--surf2:#263148;--brd:#334155;
+  --txt:#f1f5f9;--muted:#94a3b8;--accent:#38bdf8;
+  --green:#4ade80;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--purple:#a78bfa;
+}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,sans-serif;font-size:13px;}
+.header{background:var(--surf);border-bottom:1px solid var(--brd);padding:11px 20px;display:flex;justify-content:space-between;align-items:center;}
+.header h1{font-size:17px;font-weight:700;letter-spacing:.3px;}
+.header .sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.header-right{display:flex;gap:10px;align-items:center;}
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--brd);overflow-x:auto;}
+.tab-btn{padding:11px 16px;font-size:12px;cursor:pointer;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-weight:400;white-space:nowrap;transition:all .15s;position:relative;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+.tab-btn .badge{position:absolute;top:6px;right:4px;background:var(--red);color:#fff;border-radius:8px;padding:0 4px;font-size:9px;font-weight:700;}
+.content{padding:14px 18px;}
+.tab-panel{display:none;}.tab-panel.active{display:block;}
+.card{background:var(--surf);border-radius:10px;padding:16px;border:1px solid var(--brd);margin-bottom:12px;}
+.kpi-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.kpi{background:var(--surf);border-radius:10px;padding:12px 16px;border:1px solid var(--brd);flex:1;min-width:110px;}
+.kpi-label{font-size:11px;color:var(--muted);margin-bottom:3px;}
+.kpi-val{font-size:24px;font-weight:700;font-family:monospace;}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.kpi.alert{border-color:var(--red);}
+.kpi.alert .kpi-sub{color:var(--red);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{padding:8px 12px;text-align:left;color:var(--muted);border-bottom:1px solid var(--brd);font-weight:500;white-space:nowrap;}
+td{padding:8px 12px;border-bottom:1px solid #33415520;vertical-align:middle;}
+tr:hover td{background:var(--surf2);}
+.badge{display:inline-block;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;}
+.badge-ok{background:#14532d;color:var(--green);}
+.badge-leve{background:#713f12;color:var(--yellow);}
+.badge-crit{background:#7f1d1d;color:var(--red);}
+.badge-venc{background:#7f1d1d;color:var(--red);font-size:10px;margin-left:4px;}
+.btn{padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-size:13px;}
+.btn-accent{background:var(--accent);color:#000;}
+.btn-green{background:var(--green);color:#000;}
+.btn-outline{background:transparent;color:var(--muted);border:1px solid var(--brd)!important;border:none;}
+.btn-red{background:#dc2626;color:#fff;}
+.btn-csv{background:var(--surf2);color:var(--accent);border:1px solid var(--brd);}
+input,select,textarea{padding:7px 11px;border-radius:6px;background:var(--surf2);color:var(--txt);border:1px solid var(--brd);font-size:13px;outline:none;font-family:inherit;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+.filter-btn{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;background:transparent;color:var(--muted);border:1px solid var(--brd);}
+.filter-btn.active{background:var(--accent);color:#000;border-color:var(--accent);}
+.filter-btn.active-dark{background:var(--surf2);color:var(--txt);border-color:var(--accent);}
+.progress{height:6px;background:var(--brd);border-radius:3px;overflow:hidden;margin-top:4px;}
+.progress-bar{height:100%;border-radius:3px;transition:width .4s;}
+.overdue-row td{background:#7c2d1215!important;}
+.toast{position:fixed;bottom:22px;right:22px;padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;z-index:9999;box-shadow:0 4px 20px #0008;display:none;}
+.section-title{font-size:13px;font-weight:600;margin-bottom:8px;}
+canvas{max-height:200px;}
+.chart-wrap{position:relative;height:200px;margin-bottom:4px;}
+.chart-wrap-tall{position:relative;height:240px;}
+.resp-card{background:var(--surf);border-radius:10px;padding:14px;border:1px solid var(--brd);}
+.resp-card .name{font-weight:700;font-size:16px;margin-bottom:6px;}
+.resp-mini{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+.resp-mini .lbl{font-size:10px;color:var(--muted);}
+.resp-mini .val{font-size:16px;font-weight:700;font-family:monospace;}
+.pie-legend{margin-top:4px;}
+.pie-legend div{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:3px;}
+.pie-dot{width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;}
+.edit-row input,.edit-row select{padding:5px 8px;font-size:12px;}
+@media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr;}.kpi{min-width:80px;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🏪 CONTROL DE TIENDAS 2026</h1>
+    <div class="sub" id="hdr-sub">44 bodegas · 102 novedades · 0 pendientes</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-csv" onclick="exportCSV()">📤 CSV</button>
+    <button class="btn btn-red" onclick="exportPDF()">🖨 PDF</button>
+    <button class="btn" style="background:#16a34a;color:#fff;font-size:13px;padding:8px 16px" onclick="openExcelModal()">📂 Cargar Excel</button>
+    <input type="file" id="excel-input-hdr" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
+    <div style="text-align:right;font-size:11px;color:var(--muted)">
+      <div id="fb-status" style="font-weight:600;color:var(--muted)">⏳ Conectando…</div>
+      <div id="hdr-date" style="font-family:monospace;font-size:12px;color:var(--accent)"></div>
+      <div id="hdr-time" style="font-family:monospace;font-size:14px;font-weight:700;color:var(--txt)"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="resumen">📊 Resumen</button>
+  <button class="tab-btn" data-tab="financiero">💰 Financiero</button>
+  <button class="tab-btn" data-tab="rendimiento">🏆 Rendimiento</button>
+  <button class="tab-btn" data-tab="clasif">🗂 Clasificar</button>
+  <button class="tab-btn" data-tab="pendientes">📋 Pendientes</button>
+  <button class="tab-btn" data-tab="notas">📝 Notas</button>
+  <button class="tab-btn" data-tab="datos">⚙️ Datos</button>
+</div>
+
+<div class="content">
+<!-- RESUMEN -->
+<div class="tab-panel active" id="tab-resumen">
+  <div class="kpi-row" id="kpi-resumen"></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="section-title">Estado general</div>
+      <div class="chart-wrap"><canvas id="chartPie"></canvas></div>
+      <div class="pie-legend" id="pie-legend"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">Por responsable</div>
+      <div id="resp-mini-cards" style="display:flex;gap:8px;margin-bottom:8px;"></div>
+      <div class="chart-wrap"><canvas id="chartResp"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title">📅 Tendencia mensual 2026</div>
+    <div style="position:relative;height:200px"><canvas id="chartTrend"></canvas></div>
+  </div>
+</div>
+
+<!-- FINANCIERO -->
+<div class="tab-panel" id="tab-financiero">
+  <div class="kpi-row" id="kpi-fin"></div>
+  <div class="grid3" id="resp-fin-cards"></div>
+  <div class="card">
+    <div class="section-title">Faltantes vs Sobrantes por bodega (Top 18)</div>
+    <div style="position:relative;height:200px"><canvas id="chartFin"></canvas></div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:600">Detalle financiero por bodega</span>
+      <div style="display:flex;gap:6px">
+        <button class="filter-btn active" onclick="sortFin('saldo',this)">Por saldo</button>
+        <button class="filter-btn" onclick="sortFin('rate',this)">Por resolución</button>
+        <button class="filter-btn" onclick="sortFin('falt',this)">Por faltantes</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto"><table><thead><tr>
+      <th>Bodega</th><th>Resp.</th><th>Faltantes</th><th>Sobrantes</th><th>Saldo</th><th>Resolución</th><th>Vencidas</th>
+    </tr></thead><tbody id="fin-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- RENDIMIENTO -->
+<div class="tab-panel" id="tab-rendimiento">
+  <div class="grid2">
+    <div class="card" id="ranking-resp-card"></div>
+    <div class="card">
+      <div class="section-title">Score comparado</div>
+      <div class="chart-wrap-tall"><canvas id="chartRend"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;font-weight:600;border-bottom:1px solid var(--brd)">Ranking completo de bodegas</div>
+    <div style="overflow-x:auto"><table><thead><tr>
+      <th>#</th><th>Bodega</th><th>Responsable</th><th>Estado</th><th>Faltantes</th><th>Score</th>
+    </tr></thead><tbody id="rend-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- CLASIFICAR -->
+<div class="tab-panel" id="tab-clasif">
+  <div class="card" style="margin-bottom:12px;padding:12px 14px">
+    <div class="filter-bar" style="margin-bottom:8px">
+      <input type="text" id="search-nov" placeholder="🔍 Buscar bodega, novedad, solución…" style="flex:1;min-width:180px" oninput="renderClasif()">
+      <button class="filter-btn active" data-est="ALL" onclick="setEstFilter(this)">Todos</button>
+      <button class="filter-btn" data-est="🔴" onclick="setEstFilter(this)">🔴</button>
+      <button class="filter-btn" data-est="🟡" onclick="setEstFilter(this)">🟡</button>
+      <button class="filter-btn" data-est="✖" onclick="setEstFilter(this)">✖</button>
+      <button class="filter-btn active" data-resp="ALL" onclick="setRespFilter(this,'clasif')">Todos</button>
+      <button class="filter-btn" data-resp="Jessica" onclick="setRespFilter(this,'clasif')">Jessica</button>
+      <button class="filter-btn" data-resp="Johan" onclick="setRespFilter(this,'clasif')">Johan</button>
+      <button class="filter-btn" data-resp="Jenny" onclick="setRespFilter(this,'clasif')">Jenny</button>
+    </div>
+    <div class="filter-bar">
+      <span style="font-size:12px;color:var(--muted)">📅 Desde</span>
+      <input type="date" id="f-desde" style="width:140px;padding:5px 8px" onchange="renderClasif()">
+      <span style="font-size:12px;color:var(--muted)">Hasta</span>
+      <input type="date" id="f-hasta" style="width:140px;padding:5px 8px" onchange="renderClasif()">
+      <button class="filter-btn" onclick="clearDates()" style="font-size:11px">✕ Limpiar fechas</button>
+      <button class="filter-btn" id="btn-venc" onclick="toggleVenc()">⏰ Solo vencidas</button>
+      <button class="btn btn-accent" onclick="toggleAddNov()" style="margin-left:auto;padding:6px 14px">+ Nueva novedad</button>
+    </div>
+  </div>
+  <div id="add-nov-form" style="display:none"></div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:6px" id="clasif-count"></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+      <table><thead><tr>
+        <th></th><th>Est.</th><th>Bodega</th><th>Resp.</th><th>Novedad</th><th>Solución</th><th>Fecha</th><th>Monto</th><th></th>
+      </tr></thead><tbody id="clasif-table"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- PENDIENTES -->
+<div class="tab-panel" id="tab-pendientes">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="filter-btn active" data-st="ALL" onclick="setPendFilter(this)">Todos</button>
+      <button class="filter-btn" data-st="PENDIENTE" onclick="setPendFilter(this)">PENDIENTE</button>
+      <button class="filter-btn" data-st="EN PROCESO" onclick="setPendFilter(this)">EN PROCESO</button>
+      <button class="filter-btn" data-st="RESUELTO" onclick="setPendFilter(this)">RESUELTO</button>
+    </div>
+    <button class="btn btn-accent" onclick="showAddTask()">+ Agregar tarea</button>
+  </div>
+  <div id="task-form" style="display:none"></div>
+  <div id="tasks-list"></div>
+</div>
+
+<!-- NOTAS -->
+<div class="tab-panel" id="tab-notas">
+  <div style="display:grid;grid-template-columns:210px 1fr;gap:12px;min-height:500px">
+    <div class="card" style="padding:6px 0;overflow-y:auto;max-height:600px">
+      <div style="padding:4px 10px 8px;display:flex;gap:3px;flex-wrap:wrap">
+        <button class="filter-btn active" data-nr="ALL" onclick="setNotasResp(this)">Todo</button>
+        <button class="filter-btn" data-nr="Jessica" onclick="setNotasResp(this)">Jessica</button>
+        <button class="filter-btn" data-nr="Johan" onclick="setNotasResp(this)">Johan</button>
+        <button class="filter-btn" data-nr="Jenny" onclick="setNotasResp(this)">Jenny</button>
+      </div>
+      <div id="notas-list"></div>
+    </div>
+    <div id="notas-detail"></div>
+  </div>
+</div>
+
+<!-- DATOS -->
+<div class="tab-panel" id="tab-datos">
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--brd);margin-bottom:14px">
+    <button class="tab-btn active" data-dp="stores" onclick="setDatosPanel(this)" style="border-bottom-color:var(--purple);color:var(--purple)">✏️ Bodegas</button>
+    <button class="tab-btn" data-dp="paste" onclick="setDatosPanel(this)">📋 Importar</button>
+    <button class="tab-btn" data-dp="excel" onclick="setDatosPanel(this)">📂 Excel</button>
+    <button class="tab-btn" data-dp="sheets" onclick="setDatosPanel(this)">🔄 Sheets</button>
+  </div>
+  <div id="datos-stores">
+    <div class="card" style="border-color:var(--purple);margin-bottom:14px">
+      <div class="section-title">➕ Agregar bodega</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">ID</label><input id="ns-id" placeholder="B-50" style="width:90px"></div>
+        <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Responsable</label>
+          <select id="ns-resp"><option>Jessica</option><option>Johan</option><option>Jenny</option></select></div>
+        <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Faltantes</label><input id="ns-fal" type="number" min="0" value="0" style="width:80px"></div>
+        <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Estado</label>
+          <select id="ns-nov"><option>OK</option><option>LEVE</option><option>CRITICO</option></select></div>
+        <button class="btn" style="background:var(--purple);color:#fff;align-self:flex-end" onclick="addStore()">Agregar</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th></th><th>Bodega</th><th>Responsable</th><th>Faltantes</th><th>Estado</th><th></th>
+      </tr></thead><tbody id="stores-table"></tbody></table></div>
+    </div>
+  </div>
+  <div id="datos-paste" style="display:none">
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">📋 Importar desde Excel (copy-paste)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.7">Copia filas directamente del Excel y pégalas aquí.<br>
+        <strong style="color:var(--txt)">Novedades:</strong> Bodega → Estado (🔴/🟡/✖) → Novedad → Solución → Fecha<br>
+        <strong style="color:var(--txt)">Bodegas:</strong> ID → Responsable → Faltantes → Estado (OK/LEVE/CRITICO)</p>
+      <textarea id="paste-area" rows="8" placeholder="Pega aquí el contenido de Excel…" style="width:100%;resize:vertical;font-family:monospace;font-size:12px;line-height:1.6;margin-bottom:10px"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-accent" onclick="parsePaste()">🔍 Analizar</button>
+        <button class="btn btn-green" id="btn-apply-paste" style="display:none" onclick="applyPaste()">✅ Importar</button>
+        <button class="btn btn-outline" onclick="document.getElementById('paste-area').value='';clearPasteResult()">Limpiar</button>
+      </div>
+      <div id="paste-result" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div id="datos-excel" style="display:none">
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">📂 Cargar archivo Excel (.xlsx / .xls / .csv)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Arrastra un archivo Excel aquí o haz clic para seleccionarlo.<br>
+        <strong style="color:var(--txt)">Columnas esperadas — Novedades:</strong> Bodega · Estado · Novedad · Solución · Fecha<br>
+        <strong style="color:var(--txt)">Columnas esperadas — Bodegas:</strong> Bodega · Responsable · Faltantes · Estado<br>
+        <span style="color:var(--yellow)">También compatible con el archivo Google Sheets exportado como .xlsx o .csv.</span>
+      </p>
+      <div id="excel-drop-zone" onclick="document.getElementById('excel-file-input').click()"
+        style="border:2px dashed var(--brd);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surf2);">
+        <div style="font-size:36px;margin-bottom:8px">📂</div>
+        <div style="font-weight:600;font-size:14px;color:var(--txt);margin-bottom:4px">Arrastra tu Excel aquí</div>
+        <div style="font-size:12px;color:var(--muted)">o haz clic para abrir el explorador de archivos</div>
+        <div style="font-size:11px;color:var(--accent);margin-top:8px">Formatos: .xlsx · .xls · .csv</div>
+      </div>
+      <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
+      <div id="excel-status" style="margin-top:14px;display:none;padding:10px 14px;border-radius:6px;background:var(--surf2);border:1px solid var(--brd);font-size:13px;"></div>
+      <div id="excel-preview" style="margin-top:12px;display:none">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">Vista previa (primeras 5 filas)</div>
+        <div style="overflow-x:auto;border-radius:6px;border:1px solid var(--brd)">
+          <table id="excel-preview-table" style="font-size:11px"></table>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-green" id="btn-apply-excel" onclick="applyExcelData()" style="display:none">✅ Importar datos</button>
+          <button class="btn btn-outline" onclick="clearExcel()">✕ Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="datos-sheets" style="display:none">
+    <!-- FIREBASE CONFIG -->
+    <div class="card" style="border-color:var(--accent);margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-size:18px">🔥</span>
+        <div>
+          <div style="font-size:14px;font-weight:700">Firebase · Tiempo Real</div>
+          <div style="font-size:11px;color:var(--muted)">Todos los usuarios ven los cambios en 1-2 segundos</div>
+        </div>
+        <div id="fb-pill" style="margin-left:auto;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#33415580;color:var(--muted)">Sin conectar</div>
+      </div>
+      <div id="fb-setup-info" style="background:var(--surf2);border-radius:8px;padding:12px;border:1px solid var(--brd);margin-bottom:12px;font-size:12px;line-height:1.8">
+        <strong style="color:var(--accent)">Pasos para activar (una sola vez, gratis):</strong><br>
+        1. Abre <a href="https://console.firebase.google.com/" target="_blank" style="color:var(--accent)">console.firebase.google.com</a> con tu cuenta Google<br>
+        2. <strong style="color:var(--txt)">Crear proyecto</strong> → dale un nombre (ej: <em>tiendas-2026</em>) → Continuar<br>
+        3. En el menú lateral: <strong style="color:var(--txt)">Realtime Database</strong> → Crear base de datos → Modo prueba → Listo<br>
+        4. Ve a <strong style="color:var(--txt)">⚙ Configuración del proyecto → Tus apps → Añadir app Web (&lt;/&gt;)</strong><br>
+        5. Copia los valores <code style="color:var(--yellow)">apiKey</code>, <code style="color:var(--yellow)">databaseURL</code> y <code style="color:var(--yellow)">projectId</code> y pégalos abajo
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">API Key</label>
+          <input id="fb-apikey" placeholder="AIzaSy..." style="width:100%;font-size:12px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Project ID</label>
+          <input id="fb-projectid" placeholder="tiendas-2026" style="width:100%;font-size:12px">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Database URL</label>
+        <input id="fb-dburl" placeholder="https://tiendas-2026-default-rtdb.firebaseio.com" style="width:100%;font-size:12px">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-accent" onclick="fbConnect()">🔥 Conectar Firebase</button>
+        <button class="btn" style="background:var(--surf2);color:var(--muted);border:1px solid var(--brd)" onclick="fbDisconnect()">Desconectar</button>
+        <button class="btn btn-green" id="fb-push-btn" style="display:none" onclick="fbPushAll()">⬆ Subir datos actuales</button>
+      </div>
+      <div id="fb-conn-status" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">🔄 Google Sheets sync (importación)</div>
+      <div style="background:#fbbf2415;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;line-height:1.8">
+        <strong style="color:var(--yellow)">⚠ Si ves error 403, sigue estos pasos en tu Google Sheets:</strong><br>
+        1. Abre el archivo → <strong style="color:var(--txt)">Archivo → Compartir → Publicar en la web</strong><br>
+        2. En "Publicar contenido y configuración" elige la hoja deseada<br>
+        3. Cambia el formato a <strong style="color:var(--green)">Valores separados por comas (.csv)</strong><br>
+        4. Clic en <strong style="color:var(--txt)">Publicar</strong> → Copia la URL que aparece → pégala abajo<br>
+        <span style="color:var(--accent)">La URL correcta empieza con: <code>https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv</code></span>
+      </div>
+      <div style="background:var(--surf2);border-radius:6px;padding:10px 14px;border:1px solid var(--brd);margin-bottom:10px;font-size:12px;line-height:1.8">
+        <strong style="color:var(--green)">✅ Formato de columnas que reconoce el dashboard:</strong><br>
+        <span style="color:var(--accent)">Novedades:</span> <code>BODEGA · ESTADO · NOVEDAD · SOLUCIÓN · FECHA</code><br>
+        <span style="color:var(--accent)">Resumen bodegas:</span> <code>BODEGA · RESPONSABLE · TOTAL FAL. · ESTADO ANUAL</code><br>
+        <span style="color:var(--muted);font-size:11px">El dashboard detecta automáticamente cuál es cuál por los nombres de columna.</span>
+      </div>
+      <input id="sheets-url" style="width:100%;margin-bottom:10px;font-size:11px;font-family:monospace" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn btn-accent" onclick="doSync()">🔄 Importar desde Sheets</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="auto-sync" onchange="toggleAutoSync()" style="accent-color:var(--accent);width:14px;height:14px"> Auto-sync 60s</label>
+        <span id="sync-active" style="display:none;font-size:12px;color:var(--green);background:#14532d40;padding:3px 10px;border-radius:4px">● Activo</span>
+      </div>
+      <div id="sync-status" style="padding:10px 14px;border-radius:6px;background:var(--surf2);border:1px solid var(--brd);font-size:12px;line-height:1.7;display:none"></div>
+    </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- MODAL EXCEL -->
+<div id="excel-modal" style="display:none;position:fixed;inset:0;background:#000a;z-index:9000;align-items:center;justify-content:center">
+  <div style="background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:24px;width:90%;max-width:560px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px #000a">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700">📂 Cargar archivo Excel</div>
+      <button onclick="closeExcelModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div id="excel-modal-drop"
+      onclick="document.getElementById('excel-input-hdr').click()"
+      style="border:2px dashed var(--accent);border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;background:var(--surf2);margin-bottom:14px;transition:all .2s">
+      <div style="font-size:40px;margin-bottom:8px">📂</div>
+      <div style="font-weight:700;font-size:15px;color:var(--accent);margin-bottom:4px">Haz clic aquí para seleccionar</div>
+      <div style="font-size:12px;color:var(--muted)">o arrastra el archivo sobre esta área</div>
+      <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <span style="background:#0ea5e920;color:var(--accent);padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">.xlsx</span>
+        <span style="background:#0ea5e920;color:var(--accent);padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">.xls</span>
+        <span style="background:#0ea5e920;color:var(--accent);padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600">.csv</span>
+      </div>
+    </div>
+    <div id="excel-modal-status" style="display:none;padding:10px 14px;border-radius:8px;background:var(--surf2);border:1px solid var(--brd);font-size:13px;margin-bottom:12px"></div>
+    <div id="excel-modal-preview" style="display:none">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">Vista previa</div>
+      <div style="overflow-x:auto;border-radius:6px;border:1px solid var(--brd);margin-bottom:14px">
+        <table id="excel-modal-table" style="font-size:11px;width:100%"></table>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button onclick="closeExcelModal()" style="background:var(--surf2);color:var(--muted);border:1px solid var(--brd);padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer">Cancelar</button>
+        <button id="excel-modal-apply" onclick="applyExcelModal()" style="background:var(--green);color:#000;border:none;padding:8px 22px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✅ Importar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const STORAGE_KEY='tiendas_2026_html_v1';
+const FB_PATH='tiendas2026'; // ruta en Firebase Realtime DB
+
+// ── FIREBASE ──────────────────────────────────────────
+let fbApp=null,fbDb=null,fbRef=null,fbConnected=false,_ignoreRemote=false;
+
+function fbSetStatus(msg,color='var(--muted)'){
+  const s=document.getElementById('fb-conn-status');if(s){s.style.color=color;s.textContent=msg;}
+  const pill=document.getElementById('fb-pill');
+  const hdr=document.getElementById('fb-status');
+  if(fbConnected){
+    if(pill){pill.style.background='#14532d60';pill.style.color='var(--green)';pill.textContent='● En vivo';}
+    if(hdr){hdr.style.color='var(--green)';hdr.textContent='🔥 En vivo';}
+  } else {
+    if(pill){pill.style.background='#33415580';pill.style.color='var(--muted)';pill.textContent='Sin conectar';}
+    if(hdr){hdr.style.color='var(--muted)';hdr.textContent='● Local';}
+  }
+}
+
+function fbLoadConfig(){
+  try{const c=JSON.parse(localStorage.getItem('fb_config_tiendas')||'{}');
+    if(c.apiKey)document.getElementById('fb-apikey').value=c.apiKey;
+    if(c.projectId)document.getElementById('fb-projectid').value=c.projectId;
+    if(c.databaseURL)document.getElementById('fb-dburl').value=c.databaseURL;
+  }catch(e){}
+}
+
+function fbConnect(){
+  const apiKey=document.getElementById('fb-apikey').value.trim();
+  const projectId=document.getElementById('fb-projectid').value.trim();
+  const databaseURL=document.getElementById('fb-dburl').value.trim();
+  if(!apiKey||!projectId||!databaseURL){showToast('Completa los 3 campos de Firebase');return;}
+  try{
+    if(fbApp){try{fbApp.delete();}catch(e){}}
+    fbApp=firebase.initializeApp({apiKey,authDomain:`${projectId}.firebaseapp.com`,databaseURL,projectId},'tiendas_'+Date.now());
+    fbDb=firebase.database(fbApp);
+    fbRef=fbDb.ref(FB_PATH);
+    localStorage.setItem('fb_config_tiendas',JSON.stringify({apiKey,projectId,databaseURL}));
+    fbSetStatus('Conectando…');
+    // Escuchar cambios en tiempo real
+    fbRef.on('value',snap=>{
+      const data=snap.val();
+      if(!data){fbSetStatus('✅ Conectado — base vacía. Sube tus datos con ⬆','var(--green)');fbConnected=true;fbSetStatus('',);document.getElementById('fb-push-btn').style.display='inline-block';return;}
+      if(_ignoreRemote){_ignoreRemote=false;return;}
+      if(data.stores)D.stores=data.stores;
+      if(data.novs)D.novs=data.novs;
+      if(data.tasks)D.tasks=data.tasks;
+      if(data.notes)D.notes=data.notes;
+      // guardar local también
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(D));}catch(e){}
+      updateHeader();
+      const activeTab=document.querySelector('.tab-btn.active')?.dataset?.tab;
+      if(activeTab==='resumen')renderResumen();
+      else if(activeTab==='financiero')renderFinanciero();
+      else if(activeTab==='rendimiento')renderRendimiento();
+      else if(activeTab==='clasif')renderClasif();
+      else if(activeTab==='pendientes')renderTasks();
+      else if(activeTab==='notas'){renderNotasList();renderNotaDetail();}
+      else if(activeTab==='datos')renderStoresTable();
+      fbConnected=true;
+      document.getElementById('fb-push-btn').style.display='inline-block';
+      fbSetStatus(`✅ Conectado · última actualización ${new Date().toLocaleTimeString('es-CO')}`,'var(--green)');
+      showToast('🔥 Datos actualizados en tiempo real','ok');
+    },err=>{fbConnected=false;fbSetStatus('❌ Error: '+err.message,'var(--red)');showToast('Error Firebase: '+err.message);});
+  }catch(e){fbConnected=false;fbSetStatus('❌ '+e.message,'var(--red)');showToast('Error al conectar Firebase');}}
+
+function fbDisconnect(){
+  if(fbRef)fbRef.off();
+  if(fbApp){try{fbApp.delete();}catch(e){}}
+  fbApp=fbDb=fbRef=null;fbConnected=false;
+  document.getElementById('fb-push-btn').style.display='none';
+  fbSetStatus('Desconectado');showToast('Firebase desconectado');}
+
+function fbPushAll(){
+  if(!fbRef){showToast('Conecta Firebase primero');return;}
+  _ignoreRemote=true;
+  fbRef.set({stores:D.stores,novs:D.novs,tasks:D.tasks,notes:D.notes,_ts:Date.now()})
+    .then(()=>{fbSetStatus(`⬆ Datos subidos ${new Date().toLocaleTimeString('es-CO')}`,'var(--green)');showToast('Datos subidos a Firebase','ok');})
+    .catch(e=>{fbSetStatus('❌ Error subiendo: '+e.message,'var(--red)');showToast('Error subiendo datos');});}
+
+function save(){
+  // Guardar local siempre
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(D));}catch(e){}
+  // Si Firebase está conectado, sincronizar
+  if(fbConnected&&fbRef){
+    _ignoreRemote=true;
+    fbRef.set({stores:D.stores,novs:D.novs,tasks:D.tasks,notes:D.notes,_ts:Date.now()})
+      .catch(e=>console.warn('Firebase save error:',e));
+  }
+}
+let D={stores:[
+  {id:"B-01",resp:"Jessica",fal:2,nov:"LEVE"},{id:"B-02",resp:"Jessica",fal:2,nov:"LEVE"},
+  {id:"B-04",resp:"Jessica",fal:2,nov:"LEVE"},{id:"B-05",resp:"Jessica",fal:0,nov:"OK"},
+  {id:"B-06",resp:"Jessica",fal:2,nov:"LEVE"},{id:"B-07",resp:"Jessica",fal:2,nov:"LEVE"},
+  {id:"B-08",resp:"Jessica",fal:3,nov:"LEVE"},{id:"B-09",resp:"Jessica",fal:0,nov:"OK"},
+  {id:"B-10",resp:"Jessica",fal:1,nov:"LEVE"},{id:"501",resp:"Jessica",fal:0,nov:"OK"},
+  {id:"B-11",resp:"Jessica",fal:0,nov:"OK"},{id:"B-12",resp:"Jessica",fal:2,nov:"LEVE"},
+  {id:"B-13",resp:"Jessica",fal:0,nov:"OK"},{id:"B-15",resp:"Jessica",fal:2,nov:"LEVE"},
+  {id:"B-17",resp:"Jessica",fal:0,nov:"OK"},{id:"B-18",resp:"Johan",fal:0,nov:"OK"},
+  {id:"B-19",resp:"Johan",fal:0,nov:"OK"},{id:"B-20",resp:"Johan",fal:0,nov:"OK"},
+  {id:"B-21",resp:"Johan",fal:3,nov:"LEVE"},{id:"B-22",resp:"Johan",fal:4,nov:"CRITICO"},
+  {id:"B-23",resp:"Johan",fal:1,nov:"LEVE"},{id:"B-24",resp:"Johan",fal:6,nov:"CRITICO"},
+  {id:"B-25",resp:"Johan",fal:5,nov:"CRITICO"},{id:"B-26",resp:"Johan",fal:1,nov:"LEVE"},
+  {id:"B-27",resp:"Johan",fal:0,nov:"OK"},{id:"B-29",resp:"Johan",fal:0,nov:"OK"},
+  {id:"B-30",resp:"Johan",fal:0,nov:"OK"},{id:"B-31",resp:"Johan",fal:2,nov:"LEVE"},
+  {id:"B-32",resp:"Johan",fal:4,nov:"CRITICO"},{id:"B-33",resp:"Johan",fal:9,nov:"CRITICO"},
+  {id:"B-34",resp:"Jenny",fal:0,nov:"OK"},{id:"B-35",resp:"Jenny",fal:1,nov:"LEVE"},
+  {id:"B-36",resp:"Jenny",fal:0,nov:"OK"},{id:"B-37",resp:"Jenny",fal:2,nov:"LEVE"},
+  {id:"B-38",resp:"Jenny",fal:5,nov:"CRITICO"},{id:"B-39",resp:"Jenny",fal:1,nov:"LEVE"},
+  {id:"B-40",resp:"Jenny",fal:0,nov:"OK"},{id:"B-41",resp:"Jenny",fal:1,nov:"LEVE"},
+  {id:"B-42",resp:"Jenny",fal:0,nov:"OK"},{id:"B-43",resp:"Jenny",fal:1,nov:"LEVE"},
+  {id:"B-44",resp:"Jenny",fal:0,nov:"OK"},{id:"B-45",resp:"Jenny",fal:0,nov:"OK"},
+  {id:"B-46",resp:"Jenny",fal:0,nov:"OK"},{id:"B-47",resp:"Jenny",fal:0,nov:"OK"},
+],novs:[
+  {id:"n001",b:"B-01",e:"🔴",n:"FALTANTE $7,545",s:"Se comentó a Aleida el 13 feb",f:"03/02/2026"},
+  {id:"n002",b:"B-01",e:"🟡",n:"SOBRANTE 7,545",s:"Aleida consignó el faltante",f:"19/02/2026"},
+  {id:"n003",b:"B-01",e:"🔴",n:"FALTANTE 309,800",s:"",f:"22/04/2026"},
+  {id:"n004",b:"B-02",e:"🔴",n:"FALTANTE $10,000",s:"No se le cobró al cliente",f:"03/02/2026"},
+  {id:"n005",b:"B-02",e:"🟡",n:"SOBRANTE 10,000",s:"Consignó el faltante del día 3",f:"22/02/2026"},
+  {id:"n006",b:"B-02",e:"🔴",n:"FALTANTE 104,900",s:"Se le escribió a Yudi el 13 mar",f:"02/03/2026"},
+  {id:"n007",b:"B-02",e:"🟡",n:"SOBRANTE 77,000",s:"Pagó faltante del día 2",f:"08/03/2026"},
+  {id:"n008",b:"B-02",e:"🔴",n:"FALTANTE 50,000",s:"No cobrados al cliente",f:"05/04/2026"},
+  {id:"n009",b:"B-04",e:"🔴",n:"FALTANTE 134,800",s:"Comentado a Betty el 9 mar",f:"28/02/2026"},
+  {id:"n010",b:"B-04",e:"🔴",n:"FALTANTE 96,900",s:"Se escribió a Betty el 16 mar",f:"08/03/2026"},
+  {id:"n011",b:"B-04",e:"🟡",n:"SOBRANTE 96,900",s:"Consignados por faltante del día 8",f:"17/03/2026"},
+  {id:"n012",b:"B-06",e:"🔴",n:"FALTANTE 2,600",s:"Comentó a Diana, consigna el 2 mar",f:"16/02/2026"},
+  {id:"n013",b:"B-06",e:"🔴",n:"FALTANTE 220,000",s:"Se comentó a Diana el día 18",f:"15/03/2026"},
+  {id:"n014",b:"B-06",e:"🟡",n:"SOBRANTE 220,000",s:"Consignados de más por faltante del 15",f:"18/03/2026"},
+  {id:"n015",b:"B-06",e:"🔴",n:"FALTANTE 96,200",s:"Consignados el 16",f:"14/04/2026"},
+  {id:"n016",b:"B-07",e:"🔴",n:"FALTANTE 8,900",s:"Se informó a Ligia, no aparece en QR",f:"21/02/2026"},
+  {id:"n017",b:"B-07",e:"🔴",n:"FALTANTE 10,000",s:"Se informó a Ligia, consignó el 2 mar",f:"26/02/2026"},
+  {id:"n018",b:"B-07",e:"🟡",n:"SOBRANTE 9,900",s:"Consignó el faltante del día 26",f:"28/02/2026"},
+  {id:"n019",b:"B-08",e:"🔴",n:"FALTANTE 100,000",s:"No pagados por el cliente",f:"26/02/2026"},
+  {id:"n020",b:"B-08",e:"🟡",n:"SOBRANTE 100,000",s:"Consignados por faltante 26 feb",f:"28/02/2026"},
+  {id:"n021",b:"B-08",e:"🔴",n:"FALTANTE 169,300",s:"Lo consigna el 9 mar",f:"05/03/2026"},
+  {id:"n022",b:"B-08",e:"🟡",n:"SOBRANTE 171,200",s:"Consignó el faltante del 5 mar",f:"07/03/2026"},
+  {id:"n023",b:"B-08",e:"🔴",n:"FALTANTE 242,300",s:"",f:"15/04/2026"},
+  {id:"n024",b:"B-08",e:"🔴",n:"FALTANTE 249,800",s:"",f:"19/04/2026"},
+  {id:"n025",b:"B-08",e:"🟡",n:"SOBRANTE 492,100",s:"",f:"30/04/2026"},
+  {id:"n026",b:"B-10",e:"🔴",n:"FALTANTE $5,000",s:"Habló con Óscar, consigna viernes 20",f:"01/02/2026"},
+  {id:"n027",b:"B-10",e:"🟡",n:"SOBRANTE 5,000",s:"Consignó el faltante del 1 feb",f:"19/02/2026"},
+  {id:"n028",b:"B-10",e:"🔴",n:"FALTANTE 10,000",s:"",f:"26/04/2026"},
+  {id:"n029",b:"B-12",e:"🔴",n:"FALTANTE 10,000 POR ADDI",s:"Pendiente por consignar",f:"13/02/2026"},
+  {id:"n030",b:"B-12",e:"🔴",n:"FALTANTE 314,900",s:"Pendiente Juan Carlos — factura venta empleado",f:"17/02/2026"},
+  {id:"n031",b:"B-15",e:"🔴",n:"FALTANTE $134,800",s:"Se consigna 200,000 el 9 feb",f:"01/02/2026"},
+  {id:"n032",b:"B-15",e:"🔴",n:"FALTANTE $52,600",s:"Cruzan con 200,000 consignados el 9 feb",f:"03/02/2026"},
+  {id:"n033",b:"B-15",e:"🟡",n:"SOBRANTE 5,000",s:"Cobrados de más al cliente",f:"07/05/2026"},
+  {id:"n034",b:"501",e:"🔴",n:"FALTANTE — ROBO SEBASTIÁN",s:"",f:"10/02/2026"},
+  {id:"n035",b:"501",e:"🔴",n:"FALTANTE — ROBO SEBASTIÁN",s:"",f:"24/02/2026"},
+  {id:"n036",b:"501",e:"🟡",n:"SOBRANTE 44,950",s:"",f:"22/04/2026"},
+  {id:"n037",b:"501",e:"🔴",n:"FALTANTE 10,500",s:"",f:"24/04/2026"},
+  {id:"n038",b:"501",e:"🔴",n:"FALTANTE 23,021",s:"",f:"25/04/2026"},
+  {id:"n039",b:"501",e:"🔴",n:"FALTANTE 3,000",s:"",f:"28/04/2026"},
+  {id:"n040",b:"501",e:"🔴",n:"FALTANTE 171,800",s:"",f:"05/05/2026"},
+  {id:"n041",b:"501",e:"🔴",n:"FALTANTE 10,000",s:"",f:"07/05/2026"},
+  {id:"n042",b:"B-22",e:"🔴",n:"FALTANTE QR pendiente",s:"",f:"10/04/2026"},
+  {id:"n043",b:"B-24",e:"🔴",n:"FALTANTE 7,375",s:"Consignado el 9",f:"06/02/2026"},
+  {id:"n044",b:"B-24",e:"🟡",n:"SOBRANTE 10,300",s:"Consignado de más por faltante del 6-7 feb",f:"09/02/2026"},
+  {id:"n045",b:"B-24",e:"🔴",n:"FALTANTE 18,000",s:"3,000 consig 20 mar / 15,000 consig 30 mar",f:"05/03/2026"},
+  {id:"n046",b:"B-24",e:"🟡",n:"SOBRANTE 18,000",s:"Consignados completos",f:"30/03/2026"},
+  {id:"n047",b:"B-24",e:"🔴",n:"FALTANTE $5,000",s:"Se cobró de menos",f:"16/04/2026"},
+  {id:"n048",b:"B-24",e:"🟡",n:"SOBRANTE $67,500",s:"Se factura el 20 abril QR",f:"18/04/2026"},
+  {id:"n049",b:"B-25",e:"🔴",n:"FALTANTE 20,000",s:"",f:"02/02/2026"},
+  {id:"n050",b:"B-25",e:"🟡",n:"SOBRANTE 200,000",s:"Consignados de más por faltantes enero-feb",f:"16/02/2026"},
+  {id:"n051",b:"B-25",e:"🔴",n:"FALTANTE 1,500 gasto mal ingresado",s:"La adm lo iba a consignar",f:"11/03/2026"},
+  {id:"n052",b:"B-25",e:"🔴",n:"FALTANTE $19,051",s:"No se le cobró completo al cliente",f:"05/04/2026"},
+  {id:"n053",b:"B-25",e:"🟡",n:"SOBRANTE $119,800",s:"Pendiente facturar venta QR",f:"08/04/2026"},
+  {id:"n054",b:"B-25",e:"🔴",n:"FALTANTE QR $169,850",s:"",f:"19/04/2026"},
+  {id:"n055",b:"B-26",e:"🟡",n:"SOBRANTE 3,000",s:"Se cobraron de más en master",f:"22/02/2026"},
+  {id:"n056",b:"B-26",e:"🔴",n:"FALTANTE QR facturado no ingresó efectivo",s:"",f:"03/03/2026"},
+  {id:"n057",b:"B-26",e:"🔴",n:"FALTANTE $75,984",s:"Recaudo sistecredito sin recibo",f:"14/04/2026"},
+  {id:"n058",b:"B-27",e:"🔴",n:"FALTANTE $209,800",s:"Venta por QR — validando con banco y Redeban",f:"18/02/2026"},
+  {id:"n059",b:"B-31",e:"✖",n:"PAGO QR NO INGRESÓ $29,900",s:"Pendiente por consignar",f:"06/04/2026"},
+  {id:"n060",b:"B-31",e:"🔴",n:"FALTANTE $44,074",s:"Recaudo pendiente de registrar",f:"15/04/2026"},
+  {id:"n061",b:"B-31",e:"🟡",n:"SOBRANTE $44,074",s:"Recaudo incluido el 17 abril",f:"17/04/2026"},
+  {id:"n062",b:"B-31",e:"🔴",n:"FALTANTE $69,900 tarjeta Master sin facturar",s:"",f:"23/04/2026"},
+  {id:"n063",b:"B-32",e:"🔴",n:"FALTANTE 130,000",s:"Consig. de más por faltante 26 ene",f:"23/02/2026"},
+  {id:"n064",b:"B-32",e:"🟡",n:"SOBRANTE $130,100",s:"Se factura el 19 abril QR",f:"18/04/2026"},
+  {id:"n065",b:"B-32",e:"🔴",n:"FALTANTE $217,500 QR sin facturar",s:"",f:"26/04/2026"},
+  {id:"n066",b:"B-32",e:"🔴",n:"FALTANTE consig. venta mayorista 1,505,400",s:"",f:"05/05/2026"},
+  {id:"n067",b:"B-33",e:"✖",n:"SOBRA 329,257 consig. de más",s:"",f:"02/02/2026"},
+  {id:"n068",b:"B-33",e:"✖",n:"QR NO CARGADO — cruce con 28",s:"",f:"02/03/2026"},
+  {id:"n069",b:"B-33",e:"🔴",n:"FALTANTE QR FE334780 $900",s:"",f:"08/03/2026"},
+  {id:"n070",b:"B-33",e:"🔴",n:"FALTANTE FE334790 $171,110",s:"Cruce con 02/02",f:"09/03/2026"},
+  {id:"n071",b:"B-33",e:"🔴",n:"FALTANTE $149,154",s:"Pendiente recaudo Sistecredito 31 mar",f:"31/03/2026"},
+  {id:"n072",b:"B-33",e:"🟡",n:"SOBRANTE $149,154",s:"Recaudo Sistecredito 31 marzo",f:"01/04/2026"},
+  {id:"n073",b:"B-33",e:"🔴",n:"FALTANTE venta Sistecredito $2,000",s:"",f:"07/04/2026"},
+  {id:"n074",b:"B-33",e:"🔴",n:"FALTANTE CONSIG. $4,000",s:"Ajuste 4/05",f:"14/04/2026"},
+  {id:"n075",b:"B-35",e:"🔴",n:"FALTANTE 182,500 consig. faltante dic/nov",s:"",f:"04/03/2026"},
+  {id:"n076",b:"B-36",e:"🔴",n:"FALTANTE 30,000",s:"Consig. el 18 de mayo",f:"26/04/2026"},
+  {id:"n077",b:"B-36",e:"🟡",n:"SOBRANTE 30,000",s:"",f:"18/05/2026"},
+  {id:"n078",b:"B-37",e:"🔴",n:"FALTANTE 10,000",s:"Consig. el 5 de abril",f:"15/03/2026"},
+  {id:"n079",b:"B-37",e:"🔴",n:"FALTANTE 54,221",s:"Consig. el 31 de marzo",f:"16/03/2026"},
+  {id:"n080",b:"B-37",e:"🟡",n:"SOBRANTE 54,221",s:"Cruce con el 15 de marzo",f:"31/03/2026"},
+  {id:"n081",b:"B-37",e:"🔴",n:"FALTANTE 14,400",s:"Faltante en consig.",f:"02/04/2026"},
+  {id:"n082",b:"B-37",e:"🟡",n:"SOBRANTE 10,000",s:"Cruce con el 15 de marzo",f:"05/04/2026"},
+  {id:"n083",b:"B-38",e:"🔴",n:"FALTANTE 10,000",s:"Informado a adm., consigna 16 feb",f:"01/02/2026"},
+  {id:"n084",b:"B-38",e:"🔴",n:"FALTANTE 22,200",s:"Consigna el 22 feb",f:"15/02/2026"},
+  {id:"n085",b:"B-38",e:"🔴",n:"FALTANTE 37,698",s:"Se consigna el 26 feb",f:"17/02/2026"},
+  {id:"n086",b:"B-38",e:"🟡",n:"SOBRANTE 53,598",s:"Consig. de más por faltantes feb",f:"26/02/2026"},
+  {id:"n087",b:"B-38",e:"🔴",n:"FALTANTE 119,900",s:"Faltante en visa",f:"18/04/2026"},
+  {id:"n088",b:"B-38",e:"🟡",n:"SOBRANTE 119,900",s:"Consig. de más por faltante del 18",f:"23/04/2026"},
+  {id:"n089",b:"B-38",e:"🔴",n:"FALTANTE 9,400",s:"Se descuentan",f:"19/04/2026"},
+  {id:"n090",b:"B-39",e:"🔴",n:"FALTANTE 20,000",s:"Informado a adm., consigna 24 feb",f:"22/02/2026"},
+  {id:"n091",b:"B-39",e:"🟡",n:"SOBRANTE 20,000",s:"Por faltante del 22 de febrero",f:"24/02/2026"},
+  {id:"n092",b:"B-40",e:"🔴",n:"FALTANTE 46,793",s:"Faltante en recaudo",f:"05/04/2026"},
+  {id:"n093",b:"B-40",e:"🟡",n:"SOBRANTE 46,793",s:"Consig. de más por faltante 5 abril",f:"19/04/2026"},
+  {id:"n094",b:"B-41",e:"🔴",n:"FALTANTE 7,093",s:"Serán consignados en próxima consig.",f:"13/03/2026"},
+  {id:"n095",b:"B-41",e:"🟡",n:"SOBRANTE 7,093",s:"Consig. de más por faltante del 13 mar",f:"26/03/2026"},
+  {id:"n096",b:"B-42",e:"🔴",n:"FALTANTE 1,000 sistecredito",s:"",f:"28/04/2026"},
+  {id:"n097",b:"B-43",e:"🔴",n:"FALTANTE 1,400",s:"Consignan en próxima consig.",f:"10/02/2026"},
+  {id:"n098",b:"B-43",e:"🟡",n:"SOBRANTE 1,400",s:"Consignado de más por faltante del 10 feb",f:"24/02/2026"},
+  {id:"n099",b:"B-45",e:"🔴",n:"FALTANTE 5,892 sistecredito",s:"Consig. el 18 de mayo",f:"21/04/2026"},
+  {id:"n100",b:"B-45",e:"🟡",n:"SOBRANTE 5,892",s:"Consig. de más por faltante del 21 abril",f:"18/05/2026"},
+  {id:"n101",b:"B-47",e:"🔴",n:"FALTANTE 40,000",s:"Faltante en consig.",f:"12/04/2026"},
+  {id:"n102",b:"B-47",e:"🟡",n:"SOBRANTE 40,000",s:"Consig. de más por faltante del 12 abril",f:"14/04/2026"},
+],tasks:[],notes:{}};
+
+// Load from localStorage
+try{const s=localStorage.getItem(STORAGE_KEY);if(s){const p=JSON.parse(s);if(p.stores)D.stores=p.stores;if(p.novs)D.novs=p.novs;if(p.tasks)D.tasks=p.tasks;if(p.notes)D.notes=p.notes;}}catch(e){}
+
+// ── HELPERS ──────────────────────────────────────────
+function parseDateCO(s){if(!s)return null;const m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return null;return new Date(+m[3],+m[2]-1,+m[1]);}
+function daysAgo(s){const d=parseDateCO(s);if(!d)return 0;return Math.floor((new Date('2026-05-27')-d)/(864e5));}
+function parseAmt(t){const n=t.replace(/\./g,'').match(/\$?\s*(\d{3,})/g);if(!n)return 0;const v=n.map(x=>parseInt(x.replace(/[$\s]/g,''))).filter(x=>x>=1000&&x<=5e7);return v.length?Math.max(...v):0;}
+function fmtCOP(n){if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n;}
+function badge(v){const m={OK:'badge-ok',LEVE:'badge-leve',CRITICO:'badge-crit'};return`<span class="badge ${m[v]||'badge-leve'}">${v==='OK'?'SIN NOVEDAD':v==='LEVE'?'LEVE':'CRÍTICO'}</span>`;}
+function estCol(e){return e==='🔴'?'var(--red)':e==='🟡'?'var(--yellow)':'var(--orange)';}
+function storeResp(bid){return(D.stores.find(s=>s.id===bid)||{}).resp||'';}
+function showToast(msg,ok){const t=document.getElementById('toast');t.textContent=msg;t.style.background=ok?'var(--green)':'var(--red)';t.style.color='#000';t.style.display='block';setTimeout(()=>t.style.display='none',2800);}
+function score(s){return 100+(s.nov==='OK'?20:s.nov==='LEVE'?5:-15)-s.fal*4;}
+
+// ── CHARTS ───────────────────────────────────────────
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const CHART_DEFAULTS={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f1f5f9',bodyColor:'#94a3b8',borderColor:'#334155',borderWidth:1}}};
+
+// ── TAB: RESUMEN ──────────────────────────────────────
+function renderResumen(){
+  const ok=D.stores.filter(s=>s.nov==='OK').length;
+  const leve=D.stores.filter(s=>s.nov==='LEVE').length;
+  const crit=D.stores.filter(s=>s.nov==='CRITICO').length;
+  const venc=D.novs.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;
+
+  document.getElementById('kpi-resumen').innerHTML=`
+    ${kpiHtml('Total bodegas',D.stores.length,'','var(--txt)',false)}
+    ${kpiHtml('Sin novedad',ok,Math.round(ok/D.stores.length*100)+'%','var(--green)',false)}
+    ${kpiHtml('Leves',leve,'','var(--yellow)',false)}
+    ${kpiHtml('Críticas',crit,'','var(--red)',false)}
+    ${kpiHtml('Registros',D.novs.length,'novedades totales','var(--accent)',false)}
+    ${kpiHtml('⏰ Vencidas',venc,'+30 días sin resolver','var(--orange)',venc>0)}`;
+
+  // Pie
+  destroyChart('chartPie');
+  charts.chartPie=new Chart(document.getElementById('chartPie'),{type:'doughnut',data:{labels:['Sin Novedad','Leve','Crítico'],datasets:[{data:[ok,leve,crit],backgroundColor:['#4ade80','#fbbf24','#f87171'],borderWidth:2,borderColor:'#1e293b'}]},options:{...CHART_DEFAULTS,cutout:'55%'}});
+  document.getElementById('pie-legend').innerHTML=[['#4ade80','Sin Novedad',ok],['#fbbf24','Leve',leve],['#f87171','Crítico',crit]]
+    .map(([c,l,v])=>`<div><span class="pie-dot" style="background:${c}"></span><span style="color:var(--muted)">${l}</span><span style="margin-left:auto;font-weight:700;font-family:monospace">${v}</span></div>`).join('');
+
+  // Resp bar
+  const resps=['Jessica','Johan','Jenny'];
+  const rData=resps.map(r=>{const ss=D.stores.filter(s=>s.resp===r);return{n:r,ok:ss.filter(s=>s.nov==='OK').length,leve:ss.filter(s=>s.nov==='LEVE').length,crit:ss.filter(s=>s.nov==='CRITICO').length};});
+  document.getElementById('resp-mini-cards').innerHTML=rData.map(r=>`<div class="card" style="flex:1;margin-bottom:0;padding:10px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">${r.n}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--green);background:#14532d;padding:2px 6px;border-radius:4px">✅${r.ok}</span>
+      <span style="font-size:11px;color:var(--yellow);background:#713f12;padding:2px 6px;border-radius:4px">⚠${r.leve}</span>
+      <span style="font-size:11px;color:var(--red);background:#7f1d1d;padding:2px 6px;border-radius:4px">🚨${r.crit}</span>
+    </div></div>`).join('');
+  destroyChart('chartResp');
+  charts.chartResp=new Chart(document.getElementById('chartResp'),{type:'bar',data:{labels:resps,datasets:[
+    {label:'Sin Novedad',data:rData.map(r=>r.ok),backgroundColor:'#4ade80',stack:'a'},
+    {label:'Leve',data:rData.map(r=>r.leve),backgroundColor:'#fbbf24',stack:'a'},
+    {label:'Crítico',data:rData.map(r=>r.crit),backgroundColor:'#f87171',stack:'a'},
+  ]},options:{...CHART_DEFAULTS,scales:{x:{ticks:{color:'#94a3b8'}},y:{ticks:{color:'#94a3b8'},grid:{color:'#33415540'}}}}});
+
+  // Trend 12 meses
+  const MES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const trend=Array.from({length:12},(_,i)=>({
+    f:D.novs.filter(n=>n.e==='🔴'&&parseDateCO(n.f)?.getMonth()===i).length,
+    s:D.novs.filter(n=>n.e==='🟡'&&parseDateCO(n.f)?.getMonth()===i).length,
+    o:D.novs.filter(n=>n.e==='✖'&&parseDateCO(n.f)?.getMonth()===i).length,
+  }));
+  destroyChart('chartTrend');
+  charts.chartTrend=new Chart(document.getElementById('chartTrend'),{type:'line',data:{labels:MES,datasets:[
+    {label:'Faltantes 🔴',data:trend.map(t=>t.f),borderColor:'#f87171',backgroundColor:'#f8717120',tension:.3,pointRadius:4,fill:true},
+    {label:'Sobrantes 🟡',data:trend.map(t=>t.s),borderColor:'#fbbf24',backgroundColor:'#fbbf2420',tension:.3,pointRadius:4},
+    {label:'Otros ✖',data:trend.map(t=>t.o),borderColor:'#fb923c',backgroundColor:'#fb923c20',tension:.3,pointRadius:4},
+  ]},options:{...CHART_DEFAULTS,scales:{x:{ticks:{color:'#94a3b8'},grid:{color:'#33415540'}},y:{ticks:{color:'#94a3b8'},grid:{color:'#33415540'}}}}});
+}
+
+function kpiHtml(l,v,sub,color,alert){return`<div class="kpi${alert?' alert':''}"><div class="kpi-label">${l}</div><div class="kpi-val" style="color:${color}">${v}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
+
+// ── TAB: FINANCIERO ───────────────────────────────────
+let finSort='saldo';
+function renderFinanciero(){
+  const sd=D.stores.map(s=>{
+    const mn=D.novs.filter(n=>n.b===s.id);
+    const fn=mn.filter(n=>n.e==='🔴'),sn=mn.filter(n=>n.e==='🟡');
+    const tf=fn.reduce((a,n)=>a+parseAmt(n.n),0),ts=sn.reduce((a,n)=>a+parseAmt(n.n),0);
+    const rate=fn.length+sn.length>0?Math.round(sn.length/(fn.length+sn.length)*100):100;
+    const venc=fn.filter(n=>daysAgo(n.f)>30).length;
+    return{...s,tf,ts,saldo:ts-tf,rate,pend:fn.length,res:sn.length,venc};
+  });
+  const gf=sd.reduce((a,s)=>a+s.tf,0),gs=sd.reduce((a,s)=>a+s.ts,0),gv=sd.reduce((a,s)=>a+s.venc,0);
+  const gr=sd.filter(s=>s.pend+s.res>0).reduce((a,s,_,arr)=>a+s.rate/arr.length,0);
+
+  document.getElementById('kpi-fin').innerHTML=`
+    ${kpiHtml('💸 Total faltantes',fmtCOP(gf),'valor registrado 2026','var(--red)',false)}
+    ${kpiHtml('✅ Total sobrantes',fmtCOP(gs),'consignaciones recibidas','var(--green)',false)}
+    ${kpiHtml('📊 Saldo neto',fmtCOP(gs-gf),gs>=gf?'a favor':'pendiente',gs>=gf?'var(--green)':'var(--red)',false)}
+    ${kpiHtml('✅ Tasa resolución',Math.round(gr)+'%','faltantes resueltos',gr>=70?'var(--green)':gr>=50?'var(--yellow)':'var(--red)',false)}
+    ${kpiHtml('⏰ Vencidas',gv,'+30 días sin resolver','var(--orange)',gv>0)}`;
+
+  const rds=['Jessica','Johan','Jenny'].map(r=>{
+    const rs=sd.filter(s=>s.resp===r);
+    const tf=rs.reduce((a,s)=>a+s.tf,0),ts=rs.reduce((a,s)=>a+s.ts,0);
+    const rate=rs.reduce((a,s)=>a+s.pend+s.res,0)>0?Math.round(rs.reduce((a,s)=>a+s.res,0)/rs.reduce((a,s)=>a+s.pend+s.res,0)*100):100;
+    const venc=rs.reduce((a,s)=>a+s.venc,0),pend=rs.reduce((a,s)=>a+s.pend,0);
+    return{r,tf,ts,saldo:ts-tf,rate,venc,pend};
+  });
+  document.getElementById('resp-fin-cards').innerHTML=rds.map(r=>`
+    <div class="resp-card" style="border-left:3px solid ${r.saldo>=0?'var(--green)':'var(--red)'}">
+      <div class="name">${r.r}</div>
+      <div class="resp-mini">
+        <div><div class="lbl">Faltantes</div><div class="val" style="color:var(--red)">${fmtCOP(r.tf)}</div></div>
+        <div><div class="lbl">Sobrantes</div><div class="val" style="color:var(--green)">${fmtCOP(r.ts)}</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px">
+        <span>Resolución</span><span style="color:${r.rate>=70?'var(--green)':r.rate>=50?'var(--yellow)':'var(--red)'};font-weight:600">${r.rate}%</span>
+      </div>
+      <div class="progress"><div class="progress-bar" style="width:${r.rate}%;background:${r.rate>=70?'var(--green)':r.rate>=50?'var(--yellow)':'var(--red)'}"></div></div>
+      <div style="display:flex;gap:6px;font-size:11px;margin-top:8px">
+        <span style="color:var(--red);background:#7f1d1d40;padding:2px 8px;border-radius:4px">${r.pend} falt. activos</span>
+        ${r.venc>0?`<span style="color:var(--orange);background:#7c2d1240;padding:2px 8px;border-radius:4px">⏰${r.venc} venc.</span>`:''}
+      </div>
+    </div>`).join('');
+
+  const barD=sd.filter(s=>s.tf>0||s.ts>0).slice(0,18);
+  destroyChart('chartFin');
+  charts.chartFin=new Chart(document.getElementById('chartFin'),{type:'bar',data:{labels:barD.map(s=>s.id),datasets:[
+    {label:'Faltantes',data:barD.map(s=>s.tf),backgroundColor:'#f87171',borderRadius:4},
+    {label:'Sobrantes',data:barD.map(s=>s.ts),backgroundColor:'#4ade80',borderRadius:4},
+  ]},options:{...CHART_DEFAULTS,scales:{x:{ticks:{color:'#94a3b8',maxRotation:45}},y:{ticks:{color:'#94a3b8',callback:v=>fmtCOP(v)},grid:{color:'#33415540'}}}}});
+
+  renderFinTable(sd);
+}
+function sortFin(by,btn){finSort=by;document.querySelectorAll('[onclick^="sortFin"]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  const sd=D.stores.map(s=>{const mn=D.novs.filter(n=>n.b===s.id);const fn=mn.filter(n=>n.e==='🔴'),sn=mn.filter(n=>n.e==='🟡');const tf=fn.reduce((a,n)=>a+parseAmt(n.n),0),ts=sn.reduce((a,n)=>a+parseAmt(n.n),0);const rate=fn.length+sn.length>0?Math.round(sn.length/(fn.length+sn.length)*100):100;const venc=fn.filter(n=>daysAgo(n.f)>30).length;return{...s,tf,ts,saldo:ts-tf,rate,pend:fn.length,res:sn.length,venc};});
+  renderFinTable(sd);}
+function renderFinTable(sd){
+  const sorted=[...sd].filter(s=>s.tf>0||s.ts>0).sort((a,b)=>finSort==='saldo'?a.saldo-b.saldo:finSort==='rate'?a.rate-b.rate:b.tf-a.tf);
+  document.getElementById('fin-table').innerHTML=sorted.map(s=>`<tr>
+    <td><strong>${s.id}</strong></td><td style="color:var(--muted)">${s.resp}</td>
+    <td style="font-family:monospace;color:var(--red)">${fmtCOP(s.tf)}</td>
+    <td style="font-family:monospace;color:var(--green)">${fmtCOP(s.ts)}</td>
+    <td style="font-family:monospace;font-weight:700;color:${s.saldo>=0?'var(--green)':'var(--red)'}">${fmtCOP(s.saldo)}</td>
+    <td><div style="display:flex;align-items:center;gap:8px"><div class="progress" style="width:60px"><div class="progress-bar" style="width:${s.rate}%;background:${s.rate>=70?'var(--green)':s.rate>=50?'var(--yellow)':'var(--red)'}"></div></div><span style="font-size:12px;color:${s.rate>=70?'var(--green)':s.rate>=50?'var(--yellow)':'var(--red)'}">${s.rate}%</span></div></td>
+    <td>${s.venc>0?`<span style="font-size:12px;color:var(--orange);background:#7c2d1240;padding:2px 8px;border-radius:4px">⏰ ${s.venc}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+  </tr>`).join('');}
+
+// ── TAB: RENDIMIENTO ──────────────────────────────────
+function renderRendimiento(){
+  const byStore=[...D.stores].map(s=>({...s,score:score(s)})).sort((a,b)=>b.score-a.score);
+  const byResp=['Jessica','Johan','Jenny'].map(r=>{const ss=D.stores.filter(s=>s.resp===r);const avg=ss.length?Math.round(ss.reduce((a,s)=>a+score(s),0)/ss.length):0;return{r,avg,ok:ss.filter(s=>s.nov==='OK').length,crit:ss.filter(s=>s.nov==='CRITICO').length,total:ss.length};}).sort((a,b)=>b.avg-a.avg);
+
+  document.getElementById('ranking-resp-card').innerHTML=`<div class="section-title">🏆 Ranking responsables</div>`+
+    byResp.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:${i<byResp.length-1?'1px solid #33415540':'none'}">
+      <span style="font-size:24px;width:32px;text-align:center">${['🥇','🥈','🥉'][i]}</span>
+      <div style="flex:1"><div style="font-weight:600;font-size:15px">${r.r}</div><div style="font-size:11px;color:var(--muted)">${r.total} bodegas · ${r.ok} OK · ${r.crit} críticas</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:700;font-family:monospace;color:${r.avg>=100?'var(--green)':r.avg>=80?'var(--yellow)':'var(--red)'}">${r.avg}</div><div style="font-size:10px;color:var(--muted)">score</div></div>
+    </div>`).join('');
+
+  destroyChart('chartRend');
+  charts.chartRend=new Chart(document.getElementById('chartRend'),{type:'bar',data:{labels:byResp.map(r=>r.r),datasets:[{label:'Score',data:byResp.map(r=>r.avg),backgroundColor:byResp.map(r=>r.avg>=100?'#4ade80':r.avg>=80?'#fbbf24':'#f87171'),borderRadius:4}]},options:{...CHART_DEFAULTS,indexAxis:'y',scales:{x:{ticks:{color:'#94a3b8'},max:130,grid:{color:'#33415540'}},y:{ticks:{color:'#f1f5f9',font:{size:13}}}}}});
+
+  document.getElementById('rend-table').innerHTML=byStore.map((s,i)=>`<tr>
+    <td style="color:var(--muted);font-family:monospace">${i+1}</td>
+    <td><strong>${s.id}</strong></td><td style="color:var(--muted)">${s.resp}</td>
+    <td>${badge(s.nov)}</td>
+    <td style="font-family:monospace;color:${s.fal===0?'var(--green)':s.fal<=3?'var(--yellow)':'var(--red)'}">${s.fal}</td>
+    <td style="font-family:monospace;font-weight:700;color:${s.score>=100?'var(--green)':s.score>=80?'var(--yellow)':'var(--red)'}">${s.score}</td>
+  </tr>`).join('');}
+
+// ── TAB: CLASIFICAR ───────────────────────────────────
+let clasifEst='ALL',clasifResp='ALL',soloVenc=false;
+function setEstFilter(btn){clasifEst=btn.dataset.est;document.querySelectorAll('[data-est]').forEach(b=>b.classList.remove('active-dark'));btn.classList.add('active-dark');renderClasif();}
+function setRespFilter(btn,tab){const attr=tab==='clasif'?'resp':'resp';clasifResp=btn.dataset.resp;document.querySelectorAll(`[data-resp]`).forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderClasif();}
+function clearDates(){document.getElementById('f-desde').value='';document.getElementById('f-hasta').value='';renderClasif();}
+function toggleVenc(){soloVenc=!soloVenc;document.getElementById('btn-venc').classList.toggle('active',soloVenc);renderClasif();}
+function toggleAddNov(){const f=document.getElementById('add-nov-form');if(f.style.display==='none'){f.style.display='block';f.innerHTML=novFormHtml();}else{f.style.display='none';}}
+function novFormHtml(n={}){return`<div class="card" style="border-color:var(--accent);margin-bottom:12px">
+  <div style="font-size:13px;font-weight:600;margin-bottom:10px">${n.id?'Editar':'➕ Agregar'} novedad</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+    <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bodega</label>
+      <select id="fn-b" style="width:100%">${D.stores.map(s=>`<option value="${s.id}" ${n.b===s.id?'selected':''}>${s.id} (${s.resp})</option>`).join('')}</select></div>
+    <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Estado</label>
+      <select id="fn-e" style="width:100%"><option ${n.e==='🔴'?'selected':''}>🔴</option><option ${n.e==='🟡'?'selected':''}>🟡</option><option ${n.e==='✖'?'selected':''}>✖</option></select></div>
+    <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Fecha</label>
+      <input id="fn-f" value="${n.f||new Date().toLocaleDateString('es-CO')}" style="width:100%"></div>
+  </div>
+  <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Descripción</label>
+    <input id="fn-n" value="${n.n||''}" style="width:100%" placeholder="Ej: FALTANTE $50,000…"></div>
+  <div style="margin-bottom:10px"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Solución / Observación</label>
+    <input id="fn-s" value="${n.s||''}" style="width:100%"></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-green" onclick="saveNov('${n.id||''}')">Guardar</button>
+    <button class="btn btn-outline" onclick="cancelNovForm()">Cancelar</button>
+  </div></div>`;}
+function cancelNovForm(){document.getElementById('add-nov-form').style.display='none';}
+function saveNov(eid){
+  const b=document.getElementById('fn-b').value,e=document.getElementById('fn-e').value,
+    f=document.getElementById('fn-f').value,n=document.getElementById('fn-n').value,s=document.getElementById('fn-s').value;
+  if(!n.trim()){showToast('Escribe una descripción');return;}
+  if(eid){D.novs=D.novs.map(x=>x.id===eid?{...x,b,e,f,n,s}:x);}
+  else{D.novs.push({id:'n'+Date.now(),b,e,f,n,s});}
+  save();cancelNovForm();renderClasif();updateHeader();showToast('Novedad guardada','ok');}
+function delNov(id){if(!confirm('¿Eliminar este registro?'))return;D.novs=D.novs.filter(n=>n.id!==id);save();renderClasif();updateHeader();showToast('Registro eliminado');}
+function editNov(id){const n=D.novs.find(x=>x.id===id);if(!n)return;const f=document.getElementById('add-nov-form');f.style.display='block';f.innerHTML=novFormHtml(n);}
+
+function renderClasif(){
+  const q=document.getElementById('search-nov').value.toLowerCase();
+  const desde=document.getElementById('f-desde').value;
+  const hasta=document.getElementById('f-hasta').value;
+  const vencCount=D.novs.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;
+  document.getElementById('btn-venc').innerHTML=`⏰ Solo vencidas${vencCount>0?` <span style="background:#7f1d1d;color:var(--red);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px">${vencCount}</span>`:''}`;
+
+  const filtered=D.novs.filter(n=>{
+    if(clasifEst!=='ALL'&&n.e!==clasifEst)return false;
+    if(clasifResp!=='ALL'&&storeResp(n.b)!==clasifResp)return false;
+    if(q&&!n.b.toLowerCase().includes(q)&&!n.n.toLowerCase().includes(q)&&!(n.s||'').toLowerCase().includes(q))return false;
+    if(soloVenc&&!(n.e==='🔴'&&daysAgo(n.f)>30))return false;
+    if(desde){const d=parseDateCO(n.f);if(!d||d<new Date(desde))return false;}
+    if(hasta){const d=parseDateCO(n.f);if(!d||d>new Date(hasta))return false;}
+    return true;
+  });
+  const vf=filtered.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;
+  document.getElementById('clasif-count').innerHTML=`${filtered.length} registros${vf>0?` · <span style="color:var(--orange)">${vf} vencidas</span>`:''}`;
+
+  document.getElementById('clasif-table').innerHTML=filtered.map(n=>{
+    const od=n.e==='🔴'&&daysAgo(n.f)>30;
+    const amt=parseAmt(n.n);
+    return`<tr class="${od?'overdue-row':''}">
+      <td style="width:20px"><button onclick="editNov('${n.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">✏</button></td>
+      <td style="font-size:16px">${n.e}</td>
+      <td><strong>${n.b}</strong></td>
+      <td style="color:var(--muted);font-size:12px">${storeResp(n.b)}</td>
+      <td style="color:${estCol(n.e)};max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.n}${od?'<span class="badge badge-venc">⏰ VENCIDA</span>':''}</td>
+      <td style="color:var(--muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.s||'—'}</td>
+      <td style="font-family:monospace;font-size:12px;color:${od?'var(--orange)':'var(--muted)'};">${n.f}${od?` <span style="font-size:10px">(${daysAgo(n.f)}d)</span>`:''}</td>
+      <td style="font-family:monospace;font-size:12px;color:${amt>0?'var(--yellow)':'var(--muted)'}">${amt>0?fmtCOP(amt):'—'}</td>
+      <td><button onclick="delNov('${n.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
+    </tr>`}).join('');}
+
+// ── TAB: PENDIENTES ───────────────────────────────────
+let pendFilter='ALL';
+function setPendFilter(btn){pendFilter=btn.dataset.st;document.querySelectorAll('[data-st]').forEach(b=>b.classList.remove('active-dark'));btn.classList.add('active-dark');renderTasks();}
+function showAddTask(t=null){
+  const f=document.getElementById('task-form');
+  f.style.display='block';
+  const storeOpts=`<option value="">— General —</option>`+D.stores.map(s=>`<option value="${s.id}" ${t&&t.store===s.id?'selected':''}>${s.id} (${s.resp})</option>`).join('');
+  f.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">${t?'Editar':'Nueva'} tarea</div>
+    <input type="hidden" id="t-id" value="${t?t.id:''}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Bodega</label><select id="t-store" style="width:100%">${storeOpts}</select></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Prioridad</label>
+        <select id="t-pri" style="width:100%"><option ${t&&t.priority==='ALTA'?'selected':''}>ALTA</option><option ${!t||t.priority==='MEDIA'?'selected':''}>MEDIA</option><option ${t&&t.priority==='BAJA'?'selected':''}>BAJA</option></select></div>
+    </div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">Descripción</label>
+      <textarea id="t-desc" rows="3" style="width:100%;resize:vertical" placeholder="Detalla la tarea…">${t?t.desc:''}</textarea></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="t-status" style="width:160px"><option ${!t||t.status==='PENDIENTE'?'selected':''}>PENDIENTE</option><option ${t&&t.status==='EN PROCESO'?'selected':''}>EN PROCESO</option><option ${t&&t.status==='RESUELTO'?'selected':''}>RESUELTO</option></select>
+      <input type="date" id="t-date" value="${t?t.date:''}" style="width:160px">
+      <button class="btn btn-green" onclick="saveTask()">Guardar</button>
+      <button class="btn btn-outline" onclick="document.getElementById('task-form').style.display='none'">Cancelar</button>
+    </div></div>`;}
+function saveTask(){
+  const id=document.getElementById('t-id').value;
+  const t={store:document.getElementById('t-store').value,desc:document.getElementById('t-desc').value,
+    priority:document.getElementById('t-pri').value,status:document.getElementById('t-status').value,
+    date:document.getElementById('t-date').value||new Date().toLocaleDateString('es-CO')};
+  if(!t.desc.trim()){showToast('Escribe una descripción');return;}
+  if(id){D.tasks=D.tasks.map(x=>x.id===id?{...x,...t}:x);}else{D.tasks.push({...t,id:'t'+Date.now()});}
+  save();document.getElementById('task-form').style.display='none';renderTasks();updateHeader();showToast('Tarea guardada','ok');}
+function delTask(id){D.tasks=D.tasks.filter(t=>t.id!==id);save();renderTasks();updateHeader();}
+function cycleTask(id){const STAT=['PENDIENTE','EN PROCESO','RESUELTO'];D.tasks=D.tasks.map(t=>{if(t.id!==id)return t;return{...t,status:STAT[(STAT.indexOf(t.status)+1)%3]};});save();renderTasks();}
+function renderTasks(){
+  const f=pendFilter==='ALL'?D.tasks:D.tasks.filter(t=>t.status===pendFilter);
+  const pc={ALTA:'var(--red)',MEDIA:'var(--yellow)',BAJA:'var(--green)'};
+  const sc={PENDIENTE:'#7c2d1230',['EN PROCESO']:'#0c375440',RESUELTO:'#14532d40'};
+  const stc={PENDIENTE:'var(--orange)',['EN PROCESO']:'var(--accent)',RESUELTO:'var(--green)'};
+  if(!f.length){document.getElementById('tasks-list').innerHTML=`<div class="card" style="text-align:center;color:var(--muted);padding:40px">${D.tasks.length===0?'No hay tareas. Usa + Agregar tarea':'Sin resultados.'}</div>`;return;}
+  document.getElementById('tasks-list').innerHTML=f.map(t=>`
+    <div class="card" style="margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;border-left:3px solid ${pc[t.priority]}">
+      <div style="flex:1">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
+          ${t.store?`<span style="font-size:12px;font-weight:700;color:var(--accent)">${t.store}</span>`:''}
+          <span style="font-size:11px;background:${pc[t.priority]}30;color:${pc[t.priority]};padding:2px 7px;border-radius:4px">${t.priority}</span>
+          <button onclick="cycleTask('${t.id}')" style="font-size:11px;padding:2px 8px;border-radius:4px;cursor:pointer;border:none;background:${sc[t.status]};color:${stc[t.status]}">${t.status}</button>
+          ${t.date?`<span style="font-size:11px;color:var(--muted)">${t.date}</span>`:''}
+        </div>
+        <div style="font-size:13px;line-height:1.5">${t.desc}</div>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button onclick="showAddTask(${JSON.stringify(t).replace(/"/g,'&quot;')})" style="padding:4px 9px;border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;border:1px solid var(--brd);font-size:12px">✏</button>
+        <button onclick="delTask('${t.id}')" style="padding:4px 9px;border-radius:4px;background:transparent;color:var(--red);cursor:pointer;border:1px solid var(--brd);font-size:12px">✕</button>
+      </div>
+    </div>`).join('');}
+
+// ── TAB: NOTAS ────────────────────────────────────────
+let notasResp='ALL',selStore=D.stores[0]?.id||'';
+function setNotasResp(btn){notasResp=btn.dataset.nr;document.querySelectorAll('[data-nr]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderNotasList();}
+function renderNotasList(){
+  const filt=notasResp==='ALL'?D.stores:D.stores.filter(s=>s.resp===notasResp);
+  document.getElementById('notas-list').innerHTML=filt.map(s=>`
+    <div onclick="selectNota('${s.id}')" style="padding:7px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:${selStore===s.id?'var(--surf2)':'transparent'};border-left:3px solid ${selStore===s.id?'var(--accent)':'transparent'}">
+      <div><div style="font-size:13px;font-weight:600;color:${selStore===s.id?'var(--txt)':'var(--muted)'}">${s.id}</div><div style="font-size:11px;color:var(--muted)">${s.resp}</div></div>
+      <div style="display:flex;gap:3px;align-items:center">${D.notes[s.id]?'<span style="font-size:10px;color:var(--accent)">📝</span>':''}<span style="font-size:10px;color:${s.nov==='OK'?'var(--green)':s.nov==='LEVE'?'var(--yellow)':'var(--red)'}">●</span></div>
+    </div>`).join('');}
+function selectNota(id){selStore=id;renderNotasList();renderNotaDetail();}
+function renderNotaDetail(){
+  const s=D.stores.find(x=>x.id===selStore)||{};
+  const novs=D.novs.filter(n=>n.b===selStore).reverse();
+  document.getElementById('notas-detail').innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px;font-weight:700">${selStore}</span>
+          <span style="font-size:13px;color:var(--muted)">${s.resp||''}</span>
+          ${badge(s.nov||'OK')}
+        </div>
+        <span style="font-size:11px;color:var(--muted)">${novs.length} novedades</span>
+      </div>
+      <textarea id="nota-text" rows="5" style="width:100%;resize:vertical;line-height:1.6" placeholder="Notas para ${selStore}…">${D.notes[selStore]||''}</textarea>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn btn-green" onclick="saveNota()">Guardar nota</button>
+        ${D.notes[selStore]?`<button class="btn btn-outline" style="color:var(--red);border-color:var(--brd)" onclick="delNota()">Borrar nota</button>`:''}
+      </div>
+    </div>
+    ${novs.length>0?`<div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--muted)">Historial de novedades</div>
+      <div style="max-height:270px;overflow-y:auto">${novs.map((n,i)=>{const od=n.e==='🔴'&&daysAgo(n.f)>30;return`<div style="display:flex;gap:10px;padding:6px 0;border-bottom:${i<novs.length-1?'1px solid #33415530':'none'};background:${od?'#7c2d1215':'transparent'}">
+        <span style="font-size:14px;min-width:20px">${n.e}</span>
+        <div style="flex:1"><div style="font-size:12px;color:${estCol(n.e)}">${n.n}${od?'<span class="badge badge-venc" style="font-size:9px">⏰</span>':''}</div>${n.s?`<div style="font-size:11px;color:var(--muted);margin-top:1px">${n.s}</div>`:''}</div>
+        <span style="font-size:11px;color:${od?'var(--orange)':'var(--muted)'};font-family:monospace;white-space:nowrap">${n.f}</span>
+      </div>`;}).join('')}</div>
+    </div>`:''}`;
+}
+function saveNota(){D.notes[selStore]=document.getElementById('nota-text').value;save();renderNotasList();renderNotaDetail();showToast('Nota guardada','ok');}
+function delNota(){delete D.notes[selStore];save();renderNotasList();renderNotaDetail();showToast('Nota borrada');}
+
+// ── TAB: DATOS ────────────────────────────────────────
+function setDatosPanel(btn){
+  document.querySelectorAll('[data-dp]').forEach(b=>{b.classList.remove('active');b.style.borderBottomColor='transparent';b.style.color='var(--muted)';});
+  btn.classList.add('active');btn.style.borderBottomColor='var(--purple)';btn.style.color='var(--purple)';
+  ['stores','paste','excel','sheets'].forEach(p=>document.getElementById('datos-'+p).style.display='none');
+  document.getElementById('datos-'+btn.dataset.dp).style.display='block';}
+function renderStoresTable(){
+  document.getElementById('stores-table').innerHTML=D.stores.map(s=>`<tr>
+    <td style="width:20px"><button onclick="editStore('${s.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">✏</button></td>
+    <td><strong>${s.id}</strong></td><td style="color:var(--muted)">${s.resp}</td>
+    <td style="font-family:monospace;color:${s.fal===0?'var(--green)':s.fal<=3?'var(--yellow)':'var(--red)'}">${s.fal}</td>
+    <td>${badge(s.nov)}</td>
+    <td><button onclick="delStore('${s.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px">✕</button></td>
+  </tr>`).join('');}
+function addStore(){
+  const id=document.getElementById('ns-id').value.trim().toUpperCase();
+  if(!id){showToast('Escribe un ID');return;}
+  if(D.stores.find(s=>s.id===id)){showToast('Ya existe');return;}
+  D.stores.push({id,resp:document.getElementById('ns-resp').value,fal:+document.getElementById('ns-fal').value,nov:document.getElementById('ns-nov').value});
+  save();renderStoresTable();updateHeader();showToast('Bodega agregada','ok');
+  document.getElementById('ns-id').value='';}
+function editStore(id){
+  const s=D.stores.find(x=>x.id===id);if(!s)return;
+  const row=document.querySelector(`button[onclick="editStore('${id}')"]`).closest('tr');
+  row.innerHTML=`<td colspan="6" style="padding:8px 14px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input value="${s.id}" disabled style="width:80px;opacity:.5;padding:5px 8px">
+    <select id="es-resp-${id}"><option ${s.resp==='Jessica'?'selected':''}>Jessica</option><option ${s.resp==='Johan'?'selected':''}>Johan</option><option ${s.resp==='Jenny'?'selected':''}>Jenny</option></select>
+    <input type="number" id="es-fal-${id}" value="${s.fal}" min="0" style="width:70px;padding:5px 8px">
+    <select id="es-nov-${id}"><option ${s.nov==='OK'?'selected':''}>OK</option><option ${s.nov==='LEVE'?'selected':''}>LEVE</option><option ${s.nov==='CRITICO'?'selected':''}>CRITICO</option></select>
+    <button class="btn btn-green" style="padding:6px 12px" onclick="saveStore('${id}')">✓</button>
+    <button class="btn btn-outline" style="padding:6px 10px" onclick="renderStoresTable()">✕</button>
+  </div></td>`;}
+function saveStore(id){
+  D.stores=D.stores.map(s=>s.id===id?{...s,resp:document.getElementById(`es-resp-${id}`).value,fal:+document.getElementById(`es-fal-${id}`).value,nov:document.getElementById(`es-nov-${id}`).value}:s);
+  save();renderStoresTable();showToast('Bodega actualizada','ok');}
+function delStore(id){if(!confirm('¿Eliminar bodega '+id+'?'))return;D.stores=D.stores.filter(s=>s.id!==id);save();renderStoresTable();showToast('Eliminada');}
+
+let pasteData=null;
+function clearPasteResult(){pasteData=null;document.getElementById('paste-result').innerHTML='';document.getElementById('btn-apply-paste').style.display='none';}
+function parsePaste(){
+  const lines=document.getElementById('paste-area').value.trim().split('\n').filter(l=>l.trim());
+  if(!lines.length){showToast('Pega datos primero');return;}
+  let np=[],sp=[];
+  lines.forEach((line,idx)=>{const p=line.split('\t');
+    if(p.length>=4){const e=p[1]?.trim();if(['🔴','🟡','✖'].includes(e)){np.push({id:'imp'+Date.now()+idx,b:p[0]?.trim(),e,n:p[2]?.trim()||'',s:p[3]?.trim()||'',f:p[4]?.trim()||''}); }}
+    if(p.length>=3){const id=p[0]?.trim(),resp=p[1]?.trim(),fal=parseInt(p[2]),nov=p[3]?.trim();if(id&&['Jessica','Johan','Jenny'].includes(resp)&&!isNaN(fal)){sp.push({id,resp,fal,nov:['OK','LEVE','CRITICO'].includes(nov)?nov:'OK'}); }}});
+  if(!np.length&&!sp.length){document.getElementById('paste-result').innerHTML=`<div style="padding:10px 14px;border-radius:6px;background:#7f1d1d30;border:1px solid var(--red);font-size:13px;color:var(--red)">Formato no reconocido.</div>`;return;}
+  pasteData={novs:np,stores:sp};
+  document.getElementById('paste-result').innerHTML=`<div style="padding:10px 14px;border-radius:6px;background:#14532d30;border:1px solid var(--green);font-size:13px;color:var(--green)">✅ Detectado: <strong>${np.length}</strong> novedades · <strong>${sp.length}</strong> bodegas. Haz clic en Importar.</div>`;
+  document.getElementById('btn-apply-paste').style.display='inline-block';
+  document.getElementById('btn-apply-paste').textContent=`✅ Importar ${np.length+sp.length} registros`;}
+function applyPaste(){
+  if(!pasteData)return;
+  if(pasteData.novs.length)D.novs.push(...pasteData.novs);
+  if(pasteData.stores.length){pasteData.stores.forEach(ps=>{const i=D.stores.findIndex(s=>s.id===ps.id);if(i>=0)D.stores[i]=ps;else D.stores.push(ps);});}
+  save();clearPasteResult();document.getElementById('paste-area').value='';updateHeader();showToast(`Importado: ${pasteData.novs.length} noveds, ${pasteData.stores.length} bodegas`,'ok');pasteData=null;}
+
+let syncInterval=null;
+function toggleAutoSync(){const on=document.getElementById('auto-sync').checked;document.getElementById('sync-active').style.display=on?'inline-block':'none';if(on){syncInterval=setInterval(doSync,60000);}else{clearInterval(syncInterval);}}
+
+function parseCSVLine(line){
+  const result=[];let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){const c=line[i];
+    if(c==='"'&&!inQ){inQ=true;}
+    else if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+    else if(c==='"'&&inQ){inQ=false;}
+    else if(c===','&&!inQ){result.push(cur.trim());cur='';}
+    else{cur+=c;}}
+  result.push(cur.trim());return result;}
+
+function detectSheetType(headers){
+  const h=headers.map(x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+  const hasEst=h.some(x=>x.includes('estado')||x.includes('est'));
+  const hasNov=h.some(x=>x.includes('novedad')||x.includes('nov'));
+  const hasResp=h.some(x=>x.includes('responsable')||x.includes('resp'));
+  const hasFal=h.some(x=>x.includes('faltante')||x.includes('fal'));
+  const hasBod=h.some(x=>x.includes('bodega')||x.includes('bod'));
+  if(hasNov||hasEst){return'novs';}
+  if(hasResp&&hasFal){return'stores';}
+  if(hasBod&&hasResp){return'stores';}
+  return'novs';}
+
+function findCol(headers,keywords){
+  const h=headers.map(x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+  for(const kw of keywords){const i=h.findIndex(x=>x.includes(kw));if(i>=0)return i;}
+  return -1;}
+
+function parseSheetNovs(rows,idx0){
+  const np=[];
+  rows.slice(1).forEach((line,idx)=>{
+    const p=parseCSVLine(line);
+    if(p.length<2||!p[0])return;
+    const h=rows[0]?parseCSVLine(rows[0]):[];
+    const ci={b:findCol(h,['bodega','bod']),e:findCol(h,['estado','est','tipo']),n:findCol(h,['novedad','nov','descripcion','desc']),s:findCol(h,['solucion','sol','observacion']),f:findCol(h,['fecha','date'])};
+    const bVal=ci.b>=0?p[ci.b]:p[0];
+    const eRaw=ci.e>=0?p[ci.e]:'';
+    const nVal=ci.n>=0?p[ci.n]:p[ci.b>=0?2:1]||'';
+    const sVal=ci.s>=0?p[ci.s]:'';
+    const fVal=ci.f>=0?p[ci.f]:'';
+    if(!bVal||!nVal)return;
+    let eVal='✖';
+    if(eRaw==='🔴'||eRaw.toUpperCase().includes('FALT'))eVal='🔴';
+    else if(eRaw==='🟡'||eRaw.toUpperCase().includes('SOBR'))eVal='🟡';
+    else if(eRaw==='✖'||eRaw.toUpperCase().includes('OTRO'))eVal='✖';
+    else if(nVal.toUpperCase().includes('FALTANTE'))eVal='🔴';
+    else if(nVal.toUpperCase().includes('SOBRANTE'))eVal='🟡';
+    np.push({id:'gs'+Date.now()+(idx0*10000)+idx,b:bVal,e:eVal,n:nVal,s:sVal,f:fVal});});
+  return np;}
+
+function parseSheetStores(rows){
+  const sp=[];
+  const h=rows[0]?parseCSVLine(rows[0]):[];
+  const ci={id:findCol(h,['bodega','id','bod']),resp:findCol(h,['responsable','resp']),fal:findCol(h,['faltante','fal','cantidad']),nov:findCol(h,['estado','nov','novedad'])};
+  rows.slice(1).forEach(line=>{
+    const p=parseCSVLine(line);
+    if(p.length<2||!p[0])return;
+    const idV=ci.id>=0?p[ci.id]:p[0];
+    const respV=ci.resp>=0?p[ci.resp]:p[1];
+    const falV=ci.fal>=0?parseInt(p[ci.fal])||0:0;
+    const novV=ci.nov>=0?p[ci.nov]:'OK';
+    if(!idV||!['Jessica','Johan','Jenny'].includes(respV))return;
+    const novN=['OK','LEVE','CRITICO'].includes(novV?.toUpperCase())?novV.toUpperCase():'OK';
+    sp.push({id:idV,resp:respV,fal:falV,nov:novN});});
+  return sp;}
+
+// ── PROXIES CORS para Google Sheets ───────────────────
+const CORS_PROXIES=[
+  url=>`https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url=>`https://thingproxy.freeboard.io/fetch/${url}`,
+  url=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+
+async function fetchSheet(csvUrl){
+  // 1. Intento directo
+  try{const r=await fetch(csvUrl,{cache:'no-cache'});if(r.ok){const t=await r.text();if(t&&t.length>10)return t;}}catch(e){}
+  // 2. Proxies en orden
+  for(const mkProxy of CORS_PROXIES){
+    try{
+      const r=await fetch(mkProxy(csvUrl),{cache:'no-cache'});
+      if(r.ok){const t=await r.text();if(t&&t.length>10&&!t.startsWith('<'))return t;}
+    }catch(e){}
+  }
+  throw new Error('HTTP 403 — Google bloqueó el acceso. Sigue los pasos: en Google Sheets ve a Archivo → Compartir → Publicar en la web → elige la HOJA → CSV → Publicar. Copia la URL nueva y pégala aquí.');
+}
+
+async function doSync(){
+  const url=document.getElementById('sheets-url').value.trim();
+  if(!url){showToast('Ingresa la URL de Google Sheets');return;}
+  const st=document.getElementById('sync-status');
+  st.style.display='block';st.style.color='var(--muted)';st.innerHTML='⏳ Conectando…';
+
+  try{
+    // Asegurar formato CSV en la URL
+    let csvUrl=url;
+    if(!csvUrl.includes('output=csv')){
+      csvUrl=csvUrl+(csvUrl.includes('?')?'&':'?')+'output=csv';
+    }
+
+    st.innerHTML='⏳ Descargando CSV (probando proxies si es necesario)…';
+    const text=await fetchSheet(csvUrl);
+    const allRows=text.split('\n').map(r=>r.trim()).filter(r=>r);
+
+    if(allRows.length<3)throw new Error('El archivo descargado está vacío o tiene menos de 3 filas.');
+
+    // ── Encontrar la fila de encabezados reales ──────────
+    // Las primeras filas pueden ser títulos decorativos.
+    // Buscar la fila que contenga "BODEGA"
+    let headerIdx=-1;
+    for(let i=0;i<Math.min(5,allRows.length);i++){
+      const cols=parseCSVLine(allRows[i]).map(c=>(c||'').toUpperCase());
+      if(cols.some(c=>c.includes('BODEGA'))){headerIdx=i;break;}
+    }
+    if(headerIdx<0)throw new Error(
+      `No se encontró columna BODEGA en las primeras filas.\nPrimera fila recibida: "${allRows[0].substring(0,80)}"\nVerifica que la URL apunte al RESUMEN GENERAL del archivo.`
+    );
+
+    const headers=parseCSVLine(allRows[headerIdx]).map(c=>(c||'').toUpperCase().trim());
+    const dataRows=allRows.slice(headerIdx+1);
+
+    // ── Detectar índices de columnas ─────────────────────
+    const iB=headers.findIndex(h=>h.includes('BODEGA'));
+    const iR=headers.findIndex(h=>h.includes('RESPONSABLE'));
+    // TOTAL FAL. está en col 14 (índice 14) — buscarlo por nombre o posición
+    const iTot=headers.findIndex(h=>h.includes('TOTAL')||h.includes('FAL.'));
+    const iEst=headers.findIndex(h=>h.includes('ESTADO'));
+    // Meses: ENE=col2, FEB=col3, MAR=col4 … (cols 2-13)
+    const MES=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+    const mesIdxs=MES.map(m=>headers.findIndex(h=>h.includes(m))).filter(i=>i>=0);
+
+    // ── Parsear filas de bodegas ─────────────────────────
+    const allStores=[];
+    let totalNovs=0, totalFal=0;
+
+    dataRows.forEach(row=>{
+      if(!row.trim())return;
+      const cols=parseCSVLine(row);
+      const bid=(cols[iB]||'').trim();
+      if(!bid||bid===''||bid.toUpperCase()==='BODEGA')return;
+
+      const resp=iR>=0?(cols[iR]||'').trim():EXCEL_RESP_MAP[bid]||'—';
+
+      // Faltantes totales: columna TOTAL FAL. o sumar de meses
+      let fal=0;
+      if(iTot>=0&&cols[iTot]&&cols[iTot].trim()!==''&&cols[iTot].trim()!=='—'){
+        fal=parseInt(cols[iTot])||0;
+      } else {
+        // Sumar 🔴 de cada mes — formato: "✅:25🔴:2🟡:1"
+        mesIdxs.forEach(mi=>{
+          const cell=(cols[mi]||'').trim();
+          if(cell==='—'||!cell)return;
+          const m=cell.match(/🔴:?(\d+)/);
+          if(m)fal+=parseInt(m[1])||0;
+        });
+      }
+
+      // Estado anual
+      let novEst='OK';
+      if(iEst>=0&&cols[iEst]){
+        const e=(cols[iEst]||'').toUpperCase();
+        if(e.includes('ATENCI')||e.includes('CRITI'))novEst='CRITICO';
+        else if(e.includes('LEVE'))novEst='LEVE';
+        else novEst='OK';
+      } else {
+        novEst=fal>=4?'CRITICO':fal>=1?'LEVE':'OK';
+      }
+
+      // Contar novedades por mes para el resumen
+      mesIdxs.forEach(mi=>{
+        const cell=(cols[mi]||'').trim();
+        if(cell==='—'||!cell)return;
+        const m=cell.match(/🔴:?(\d+)/);
+        if(m)totalNovs+=parseInt(m[1])||0;
+      });
+      totalFal+=fal;
+
+      allStores.push({id:bid,resp,fal,nov:novEst});
+    });
+
+    if(!allStores.length)throw new Error(
+      `Se leyeron ${dataRows.length} filas pero ninguna con datos de bodega reconocibles.\nEncabezados encontrados: ${headers.slice(0,8).join(' | ')}`
+    );
+
+    // Aplicar bodegas al dashboard
+    allStores.forEach(ps=>{
+      const i=D.stores.findIndex(s=>s.id===ps.id);
+      if(i>=0)D.stores[i]=ps;
+      else D.stores.push(ps);
+    });
+    save();updateHeader();
+    typeof renderStoresTable==='function'&&renderStoresTable();
+    renderResumen();
+
+    const ts=new Date().toLocaleTimeString('es-CO');
+    st.style.color='var(--green)';
+    st.innerHTML=`✅ Sincronizado con Google Sheets — ${allStores.length} bodegas · ${totalFal} faltantes totales · ${ts}`;
+    showToast(`✅ Sheets OK: ${allStores.length} bodegas actualizadas`,'ok');
+
+  }catch(e){
+    st.style.color='var(--red)';
+    st.innerHTML='❌ '+e.message;
+    showToast('Error de sync');
+  }
+}
+
+// ── EXPORTS ───────────────────────────────────────────
+function exportCSV(){
+  const rows=[['Bodega','Responsable','Estado','Novedad','Solucion','Fecha','Monto','Vencida']];
+  D.novs.forEach(n=>{const s=D.stores.find(x=>x.id===n.b)||{};const amt=parseAmt(n.n);const venc=n.e==='🔴'&&daysAgo(n.f)>30?'SI':'NO';rows.push([n.b,s.resp||'',n.e,`"${n.n.replace(/"/g,"'")}"`,`"${(n.s||'').replace(/"/g,"'")}"`,n.f,amt||'',venc]);});
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`reporte_tiendas_${new Date().toISOString().slice(0,10)}.csv`;a.click();}
+
+function exportPDF(){
+  const fecha=new Date().toLocaleDateString('es-CO',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const ok=D.stores.filter(s=>s.nov==='OK').length,leve=D.stores.filter(s=>s.nov==='LEVE').length,crit=D.stores.filter(s=>s.nov==='CRITICO').length;
+  const venc=D.novs.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;
+  const gf=D.novs.filter(n=>n.e==='🔴').reduce((a,n)=>a+parseAmt(n.n),0);
+  const gs=D.novs.filter(n=>n.e==='🟡').reduce((a,n)=>a+parseAmt(n.n),0);
+
+  const respRows=['Jessica','Johan','Jenny'].map(r=>{const ss=D.stores.filter(s=>s.resp===r);const mn=D.novs.filter(n=>storeResp(n.b)===r);const f=mn.filter(n=>n.e==='🔴').length,s=mn.filter(n=>n.e==='🟡').length,v=mn.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;return`<tr><td><b>${r}</b></td><td>${ss.length}</td><td style="color:#16a34a">${ss.filter(s=>s.nov==='OK').length}</td><td style="color:#ca8a04">${ss.filter(s=>s.nov==='LEVE').length}</td><td style="color:#dc2626">${ss.filter(s=>s.nov==='CRITICO').length}</td><td style="color:#dc2626">${f}</td><td style="color:#16a34a">${s}</td><td style="color:#ea580c">${v>0?'&#9888; '+v:'—'}</td></tr>`;}).join('');
+
+  const storeRows=D.stores.map(s=>{const mn=D.novs.filter(n=>n.b===s.id);const f=mn.filter(n=>n.e==='🔴').length,sb=mn.filter(n=>n.e==='🟡').length,v=mn.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;const color=s.nov==='OK'?'#16a34a':s.nov==='LEVE'?'#ca8a04':'#dc2626';return`<tr><td><b>${s.id}</b></td><td>${s.resp}</td><td style="color:${color};font-weight:600">${s.nov==='OK'?'SIN NOVEDAD':s.nov}</td><td>${s.fal}</td><td>${f}</td><td>${sb}</td><td>${v>0?`<span style="color:#ea580c">&#9888; ${v}</span>`:'—'}</td></tr>`;}).join('');
+
+  const vencRows=D.novs.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).sort((a,b)=>daysAgo(b.f)-daysAgo(a.f)).map(n=>`<tr style="background:#fff7ed"><td><b>${n.b}</b></td><td>${storeResp(n.b)}</td><td style="color:#dc2626">${n.n}</td><td>${n.s||'—'}</td><td>${n.f}</td><td style="color:#ea580c;font-weight:700">${daysAgo(n.f)} días</td></tr>`).join('');
+
+  const allRows=D.novs.slice().sort((a,b)=>(parseDateCO(b.f)||new Date(0))-(parseDateCO(a.f)||new Date(0))).map(n=>{const od=n.e==='🔴'&&daysAgo(n.f)>30;const ec=n.e==='🔴'?'#dc2626':n.e==='🟡'?'#ca8a04':'#ea580c';const el=n.e==='🔴'?'FALTANTE':n.e==='🟡'?'SOBRANTE':'OTRO';const amt=parseAmt(n.n);return`<tr${od?' style="background:#fff7ed"':''}><td><b>${n.b}</b></td><td>${storeResp(n.b)}</td><td style="color:${ec};font-weight:600">${el}</td><td>${n.n}</td><td>${n.s||'—'}</td><td>${n.f}</td><td style="font-family:monospace">${amt>0?fmtCOP(amt):'—'}</td><td>${od?`<span style="color:#ea580c;font-weight:700">${daysAgo(n.f)}d</span>`:'—'}</td></tr>`;}).join('');
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte Control Tiendas 2026</title>
+<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;padding:20px;}
+h1{font-size:18px;color:#0f172a;margin-bottom:2px;}.sub{color:#64748b;font-size:10px;margin-bottom:18px;}
+h2{font-size:11px;color:#0f172a;margin:18px 0 6px;padding-bottom:3px;border-bottom:2px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:18px;}
+.kpi{border:1px solid #e2e8f0;border-radius:5px;padding:8px 10px;}.kpi-label{font-size:9px;color:#64748b;text-transform:uppercase;margin-bottom:2px;}
+.kpi-val{font-size:18px;font-weight:700;font-family:monospace;}
+table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:6px;}
+th{background:#f1f5f9;padding:5px 8px;text-align:left;font-weight:700;color:#475569;border:1px solid #e2e8f0;white-space:nowrap;}
+td{padding:5px 8px;border:1px solid #e2e8f0;vertical-align:top;}tr:nth-child(even) td{background:#f8fafc;}
+.footer{margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:9px;text-align:center;}
+@media print{body{padding:8px;}@page{margin:12mm;size:A4 landscape;}}</style></head><body>
+<h1>&#127978; CONTROL DE TIENDAS 2026 — Reporte Ejecutivo</h1>
+<div class="sub">Generado: ${fecha} &nbsp;|&nbsp; ${D.stores.length} bodegas &nbsp;|&nbsp; ${D.novs.length} novedades</div>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Total bodegas</div><div class="kpi-val">${D.stores.length}</div></div>
+  <div class="kpi"><div class="kpi-label">Sin novedad</div><div class="kpi-val" style="color:#16a34a">${ok}</div></div>
+  <div class="kpi"><div class="kpi-label">Leves</div><div class="kpi-val" style="color:#ca8a04">${leve}</div></div>
+  <div class="kpi"><div class="kpi-label">Criticas</div><div class="kpi-val" style="color:#dc2626">${crit}</div></div>
+  <div class="kpi"><div class="kpi-label">&#9200; Vencidas</div><div class="kpi-val" style="color:#ea580c">${venc}</div></div>
+  <div class="kpi"><div class="kpi-label">Saldo neto</div><div class="kpi-val" style="color:${gs>=gf?'#16a34a':'#dc2626'}">${fmtCOP(gs-gf)}</div></div>
+</div>
+<h2>1. Por responsable</h2>
+<table><thead><tr><th>Responsable</th><th>Bodegas</th><th>OK</th><th>Leves</th><th>Criticas</th><th>Nov Falt.</th><th>Nov Sobr.</th><th>Vencidas</th></tr></thead><tbody>${respRows}</tbody></table>
+<h2>2. Estado de todas las bodegas</h2>
+<table><thead><tr><th>Bodega</th><th>Responsable</th><th>Estado</th><th>Faltantes</th><th>Nov 🔴</th><th>Nov 🟡</th><th>Vencidas</th></tr></thead><tbody>${storeRows}</tbody></table>
+${vencRows?`<h2 style="color:#dc2626">3. &#9200; Novedades vencidas (+30 dias)</h2><table><thead><tr><th>Bodega</th><th>Resp.</th><th>Novedad</th><th>Solucion</th><th>Fecha</th><th>Dias</th></tr></thead><tbody>${vencRows}</tbody></table>`:''}
+<h2>${vencRows?'4.':'3.'} Historial completo (${D.novs.length} registros)</h2>
+<table><thead><tr><th>Bodega</th><th>Resp.</th><th>Tipo</th><th>Descripcion</th><th>Solucion</th><th>Fecha</th><th>Monto</th><th>Dias venc.</th></tr></thead><tbody>${allRows}</tbody></table>
+<div class="footer">Dashboard Control Tiendas 2026 &nbsp;|&nbsp; ${new Date().toISOString().slice(0,19).replace('T',' ')}</div>
+</body></html>`;
+  const w=window.open('','_blank','width=1100,height=750');w.document.write(html);w.document.close();setTimeout(()=>w.print(),700);}
+
+// ── HEADER & INIT ─────────────────────────────────────
+function updateHeader(){
+  const venc=D.novs.filter(n=>n.e==='🔴'&&daysAgo(n.f)>30).length;
+  document.getElementById('hdr-sub').innerHTML=`${D.stores.length} bodegas · ${D.novs.length} novedades · ${D.tasks.length} pendientes${venc>0?` · <span style="color:var(--orange)">⏰ ${venc} vencidas</span>`:''}`;
+  const cb=document.querySelector('[data-tab="clasif"]');if(cb){const ex=cb.querySelector('.badge');if(ex)ex.remove();if(venc>0){const b=document.createElement('span');b.className='badge';b.textContent=venc;cb.appendChild(b);}}
+}
+
+// Tab switching
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='resumen')renderResumen();
+    else if(btn.dataset.tab==='financiero')renderFinanciero();
+    else if(btn.dataset.tab==='rendimiento')renderRendimiento();
+    else if(btn.dataset.tab==='clasif')renderClasif();
+    else if(btn.dataset.tab==='pendientes')renderTasks();
+    else if(btn.dataset.tab==='notas'){renderNotasList();renderNotaDetail();}
+    else if(btn.dataset.tab==='datos')renderStoresTable();
+  });});
+
+document.getElementById('hdr-date').textContent=new Date().toLocaleDateString('es-CO',{weekday:'short',day:'numeric',month:'short'});
+updateHeader();
+renderResumen();
+
+// ── RELOJ EN TIEMPO REAL ──────────────────────────────
+function updateClock(){
+  const now=new Date();
+  document.getElementById('hdr-date').textContent=now.toLocaleDateString('es-CO',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  document.getElementById('hdr-time').textContent=now.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateClock();
+setInterval(updateClock,1000);
+
+// ── PRE-CARGAR URL GOOGLE SHEETS ──────────────────────
+(function(){
+  const DEFAULT_SHEETS_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv';
+  const inp=document.getElementById('sheets-url');
+  if(inp&&!inp.value)inp.value=DEFAULT_SHEETS_URL;
+  // Cargar config Firebase guardada y auto-reconectar
+  fbLoadConfig();
+  const saved=JSON.parse(localStorage.getItem('fb_config_tiendas')||'{}');
+  if(saved.apiKey&&saved.databaseURL&&saved.projectId){
+    setTimeout(()=>{
+      document.getElementById('fb-apikey').value=saved.apiKey;
+      document.getElementById('fb-projectid').value=saved.projectId;
+      document.getElementById('fb-dburl').value=saved.databaseURL;
+      fbConnect();
+    },1200);
+  }
+})();
+
+// ── EXCEL MODAL ───────────────────────────────────────
+let excelParsedData=null;
+
+function openExcelModal(){
+  document.getElementById('excel-modal').style.display='flex';
+  document.getElementById('excel-modal-status').style.display='none';
+  document.getElementById('excel-modal-preview').style.display='none';
+  excelParsedData=null;
+  // drag & drop dentro del modal
+  const zone=document.getElementById('excel-modal-drop');
+  zone.ondragover=e=>{e.preventDefault();zone.style.background='#0ea5e930';};
+  zone.ondragleave=()=>{zone.style.background='var(--surf2)';};
+  zone.ondrop=e=>{e.preventDefault();zone.style.background='var(--surf2)';const f=e.dataTransfer.files[0];if(f)handleExcelFile(f);};
+}
+
+function closeExcelModal(){
+  document.getElementById('excel-modal').style.display='none';
+  document.getElementById('excel-input-hdr').value='';
+  excelParsedData=null;
+}
+
+function handleExcelFile(file){
+  if(!file)return;
+  document.getElementById('excel-modal').style.display='flex';
+  const ext=file.name.split('.').pop().toLowerCase();
+  const st=document.getElementById('excel-modal-status');
+  st.style.display='block';st.style.color='var(--muted)';st.textContent=`⏳ Leyendo ${file.name}…`;
+  document.getElementById('excel-modal-preview').style.display='none';
+  excelParsedData=null;
+
+  const doRead=()=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+        _parseWorkbook(wb, file.name);
+      }catch(err){st.style.color='var(--red)';st.textContent='❌ Error leyendo archivo: '+err.message;}
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  if(ext==='csv'){
+    const reader=new FileReader();
+    reader.onload=e=>_parseCSVModal(e.target.result,file.name);
+    reader.readAsText(file,'UTF-8');
+  } else if(ext==='xlsx'||ext==='xls'){
+    if(typeof XLSX!=='undefined'){doRead();}
+    else{
+      st.textContent='⏳ Cargando librería Excel…';
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=doRead;
+      s.onerror=()=>{st.style.color='var(--red)';st.textContent='❌ No se pudo cargar la librería. Exporta como .csv e intenta de nuevo.';};
+      document.head.appendChild(s);
+    }
+  } else {
+    st.style.color='var(--red)';st.textContent='❌ Formato no válido. Usa .xlsx, .xls o .csv';
+  }
+}
+
+// Mapa responsable — igual al Excel original
+const EXCEL_RESP_MAP={
+  'B-01':'Jessica','B-02':'Jessica','B-04':'Jessica','B-05':'Jessica',
+  'B-06':'Jessica','B-07':'Jessica','B-08':'Jessica','B-09':'Jessica',
+  'B-10':'Jessica','B-11':'Jessica','B-12':'Jessica','B-13':'Jessica',
+  'B-15':'Jessica','B-17':'Jessica','501':'Jessica',
+  'B-18':'Johan','B-19':'Johan','B-20':'Johan','B-21':'Johan',
+  'B-22':'Johan','B-23':'Johan','B-24':'Johan','B-25':'Johan',
+  'B-26':'Johan','B-27':'Johan','B-29':'Johan','B-30':'Johan',
+  'B-31':'Johan','B-32':'Johan','B-33':'Johan',
+  'B-34':'Jenny','B-35':'Jenny','B-36':'Jenny','B-37':'Jenny',
+  'B-38':'Jenny','B-39':'Jenny','B-40':'Jenny','B-41':'Jenny',
+  'B-42':'Jenny','B-43':'Jenny','B-44':'Jenny','B-45':'Jenny',
+  'B-46':'Jenny','B-47':'Jenny'
+};
+
+function _fmtDate(v){
+  if(!v)return'';
+  if(v instanceof Date){const d=v.getDate().toString().padStart(2,'0'),m=(v.getMonth()+1).toString().padStart(2,'0'),y=v.getFullYear();return`${d}/${m}/${y}`;}
+  if(typeof v==='string'&&v.includes('/'))return v.trim();
+  return String(v);
+}
+
+function _parseWorkbook(wb, fname){
+  const st=document.getElementById('excel-modal-status');
+  const SKIP=new Set(['📊 RESUMEN GENERAL','RESUMEN GENERAL','RESUMEN']);
+  const bodegaSheets=wb.SheetNames.filter(s=>!SKIP.has(s.toUpperCase().replace(/[^A-Z0-9]/g,'')?s:s)&&!SKIP.has(s));
+
+  let allNovs=[], storesMap={};
+  let nid=0;
+
+  bodegaSheets.forEach(shName=>{
+    const bid=shName.trim();
+    const resp=EXCEL_RESP_MAP[bid]||'Jessica';
+    const ws=wb.Sheets[shName];
+    // Convertir a array de arrays
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:'dd/mm/yyyy'});
+
+    let faltantesCount=0;
+
+    aoa.forEach(row=>{
+      if(!row||row.length<5)return;
+      const nov=typeof row[2]==='string'?row[2].trim():'';
+      const sol=typeof row[3]==='string'?row[3].trim():'';
+      const fecha=_fmtDate(row[5]||row[4]);
+
+      if(!nov||!fecha)return;
+      const novUp=nov.toUpperCase();
+      // Saltar encabezados y "SIN NOVEDAD"
+      if(['NOVEDAD','SIN NOVEDAD','','SEMANA'].includes(novUp))return;
+      if(novUp.includes('RESUMEN')||novUp.includes('CONTROL DE TIENDAS')||novUp.includes('📅')||novUp.startsWith('SEM '))return;
+      if(!fecha.match(/\d{2}\/\d{2}\/\d{4}/))return;
+
+      let e='✖';
+      if(novUp.includes('FALTANTE'))e='🔴';
+      else if(novUp.includes('SOBRANTE'))e='🟡';
+
+      if(e==='🔴')faltantesCount++;
+      nid++;
+      allNovs.push({id:'xl'+nid,b:bid,e,n:nov,s:sol,f:fecha});
+    });
+
+    const est=faltantesCount>=4?'CRITICO':faltantesCount>=1?'LEVE':'OK';
+    storesMap[bid]={id:bid,resp,fal:faltantesCount,nov:est};
+  });
+
+  const allStores=Object.values(storesMap);
+  excelParsedData={novs:allNovs,stores:allStores};
+
+  if(!allNovs.length&&!allStores.length){
+    st.style.color='var(--yellow)';
+    st.textContent='⚠ No se reconocieron datos. Verifica que sea el archivo CONTROL_TIENDAS_2026.xlsx';
+    return;
+  }
+  _showModalPreview(bodegaSheets,allNovs,allStores,fname);
+}
+
+function _parseCSVModal(text,fname){
+  const st=document.getElementById('excel-modal-status');
+  const rows=text.split('\n').filter(l=>l.trim());
+  if(rows.length<2){st.style.color='var(--red)';st.textContent='❌ El archivo está vacío.';return;}
+  const headers=parseCSVLine(rows[0]);
+  const type=detectSheetType(headers);
+  let novs=[],stores=[];
+  if(type==='stores')stores=parseSheetStores(rows);
+  else novs=parseSheetNovs(rows,0);
+  excelParsedData={novs,stores};
+  _showModalPreview([fname],novs,stores,fname);
+}
+
+function _showModalPreview(sheetNames,novs,stores,fname){
+  const st=document.getElementById('excel-modal-status');
+  const total=novs.length+stores.length;
+  if(!total){
+    st.style.color='var(--yellow)';
+    st.textContent='⚠ Archivo leído pero no se reconocieron datos. Verifica que las columnas sean: Bodega · Estado · Novedad · Solución · Fecha';
+    return;
+  }
+  st.style.color='var(--green)';
+  st.textContent=`✅ ${fname} — ${sheetNames.length} hoja(s) · ${novs.length} novedades · ${stores.length} bodegas`;
+  const preview=novs.slice(0,5);
+  document.getElementById('excel-modal-table').innerHTML=
+    `<thead><tr style="background:var(--surf2)">
+      <th style="padding:6px 10px;color:var(--muted)">Bodega</th>
+      <th style="padding:6px 10px;color:var(--muted)">Est.</th>
+      <th style="padding:6px 10px;color:var(--muted);min-width:160px">Novedad</th>
+      <th style="padding:6px 10px;color:var(--muted)">Fecha</th>
+    </tr></thead><tbody>`+
+    (preview.length
+      ? preview.map(n=>`<tr>
+          <td style="padding:5px 10px;font-weight:600">${n.b}</td>
+          <td style="padding:5px 10px">${n.e}</td>
+          <td style="padding:5px 10px;font-size:11px">${n.n}</td>
+          <td style="padding:5px 10px;font-size:11px;white-space:nowrap">${n.f}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="4" style="padding:10px;color:var(--muted);text-align:center">Solo bodegas detectadas (${stores.length})</td></tr>`
+    )+`</tbody>`;
+  document.getElementById('excel-modal-apply').textContent=`✅ Importar ${total} registro${total!==1?'s':''}`;
+  document.getElementById('excel-modal-preview').style.display='block';
+}
+
+function applyExcelModal(){
+  if(!excelParsedData)return;
+  const {novs,stores}=excelParsedData;
+  if(novs.length){D.novs=D.novs.filter(n=>!n.id?.startsWith('xl'));D.novs.push(...novs.map(n=>({...n,id:'xl'+Date.now()+Math.random()})));}
+  if(stores.length){stores.forEach(ps=>{const i=D.stores.findIndex(s=>s.id===ps.id);if(i>=0)D.stores[i]=ps;else D.stores.push(ps);});}
+  save();updateHeader();
+  showToast(`✅ Excel importado: ${novs.length} novedades · ${stores.length} bodegas`,'ok');
+  closeExcelModal();
+  renderResumen();
+}
+</script>
+</body>
+</html>
