@@ -362,7 +362,7 @@ canvas{max-height:200px;}
         <span style="color:var(--accent)">Resumen bodegas:</span> <code>BODEGA · RESPONSABLE · TOTAL FAL. · ESTADO ANUAL</code><br>
         <span style="color:var(--muted);font-size:11px">El dashboard detecta automáticamente cuál es cuál por los nombres de columna.</span>
       </div>
-      <input id="sheets-url" style="width:100%;margin-bottom:10px;font-size:11px;font-family:monospace" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv">
+      <input id="sheets-url" style="width:100%;margin-bottom:10px;font-size:11px;font-family:monospace" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv" oninput="localStorage.setItem('sheets_url_tiendas',this.value)">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-accent" onclick="doSync()">🔄 Importar desde Sheets</button>
         <button class="btn" onclick="diagSheets()" style="background:var(--surf2);color:var(--muted);border:1px solid var(--brd);font-size:11px;padding:6px 12px">🔬 Diagnóstico</button>
@@ -1114,8 +1114,11 @@ function parseSheetStores(rows){
 
 // ── PROXIES CORS para Google Sheets ───────────────────
 const CORS_PROXIES=[
-  {name:'codetabs',   mk: url=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`},
-  {name:'allorigins', mk: url=>`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, json:true},
+  {name:'codetabs',    mk: url=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`},
+  {name:'allorigins',  mk: url=>`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, json:true},
+  {name:'corsproxy.io',mk: url=>`https://corsproxy.io/?${encodeURIComponent(url)}`},
+  {name:'cors.sh',     mk: url=>`https://proxy.cors.sh/${url}`},
+  {name:'htmldriven',  mk: url=>`https://crossorigin.me/${url}`},
 ];
 
 // Agrega cachebust para evitar cache de Google (~5 min)
@@ -1134,47 +1137,58 @@ function looksLikeCSV(t){
   return true;
 }
 
+// Fetch con timeout para no quedar bloqueado
+async function fetchWithTimeout(url,opts={},ms=8000){
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),ms);
+  try{return await fetch(url,{...opts,signal:ctrl.signal});}
+  finally{clearTimeout(tid);}
+}
+
 async function fetchSheet(csvUrl){
   const diagLog=[];
 
-  // 1. Intento directo
+  // 1. Intento directo (funciona en GitHub Pages con URLs CORS-habilitadas)
   try{
-    const r=await fetch(csvUrl,{cache:'no-cache'});
-    if(r.ok){const t=await r.text();if(looksLikeCSV(t)){return t;}
+    const r=await fetchWithTimeout(csvUrl,{cache:'no-store',mode:'cors'},8000);
+    if(r.ok){const t=await r.text();if(looksLikeCSV(t)){console.log('[Sheets] OK directo');return t;}
     diagLog.push('Directo: no es CSV');}
     else{diagLog.push('Directo HTTP '+r.status);}
-  }catch(e){diagLog.push('Directo CORS bloqueado');}
+  }catch(e){diagLog.push('Directo: '+(e.name==='AbortError'?'timeout':e.message.substring(0,60)));}
 
-  // 2. Proxies — cachebust aplicado ANTES de encodear para el proxy
+  // 2. Proxies en paralelo — el primero que responda válido gana
   const csvUrlCB=addCacheBust(csvUrl);
-  for(const proxy of CORS_PROXIES){
-    try{
-      const proxyUrl=proxy.mk(csvUrlCB);
-      const r=await fetch(proxyUrl,{cache:'no-cache'});
-      if(r.ok){
-        let t=await r.text();
-        // Para proxies que devuelven JSON envolvente (ej: allorigins /get)
-        if(proxy.json){
-          try{const j=JSON.parse(t);if(j&&j.contents)t=j.contents;}catch(e2){}
-        }
-        if(looksLikeCSV(t)){console.log('[Sheets] OK via proxy:',proxy.name);return t;}
-        diagLog.push('['+proxy.name+']: respuesta no es CSV ('+t.substring(0,80)+')');
-      } else {
-        diagLog.push('['+proxy.name+'] HTTP '+r.status);
-      }
-    }catch(e){diagLog.push('['+proxy.name+'] Error: '+e.message.substring(0,60));}
-  }
 
-  throw new Error(
-    'No se pudo descargar el CSV via ningún proxy.<br><br>'+
-    '<b>Diagnóstico:</b><br>'+diagLog.join('<br>')+'<br><br>'+
-    '<b>✅ Verifica estos pasos:</b><br>'+
-    '1. En Google Sheets → Archivo → Compartir → <b>Publicar en la web</b><br>'+
-    '2. Primer desplegable: selecciona la hoja <b>RESUMEN GENERAL</b> (no B-01, B-02…)<br>'+
-    '3. Segundo desplegable: <b>Valores separados por comas (.csv)</b><br>'+
-    '4. Clic en <b>Publicar</b> → copia la URL nueva y pégala aquí.<br>'+
-    '<span style="color:#fbbf24">La URL debe empezar con: https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv</span>'
+  const tryProxy=async(proxy)=>{
+    const proxyUrl=proxy.mk(csvUrlCB);
+    const r=await fetchWithTimeout(proxyUrl,{cache:'no-store'},9000);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    let t=await r.text();
+    if(proxy.json){try{const j=JSON.parse(t);if(j&&j.contents)t=j.contents;}catch(e2){}}
+    if(!looksLikeCSV(t))throw new Error('no CSV: '+t.substring(0,60));
+    return t;
+  };
+
+  // Intentar todos en paralelo con Promise.any
+  const promises=CORS_PROXIES.map(p=>
+    tryProxy(p).then(t=>{console.log('[Sheets] OK via proxy:',p.name);return t;})
+               .catch(e=>{diagLog.push('['+p.name+']: '+e.message.substring(0,70));throw e;})
   );
+
+  try{
+    return await Promise.any(promises);
+  }catch(aggErr){
+    throw new Error(
+      'No se pudo descargar el CSV via ningún proxy.<br><br>'+
+      '<b>Diagnóstico:</b><br>'+diagLog.join('<br>')+'<br><br>'+
+      '<b>✅ Verifica estos pasos:</b><br>'+
+      '1. En Google Sheets → Archivo → Compartir → <b>Publicar en la web</b><br>'+
+      '2. Primer desplegable: selecciona la hoja <b>RESUMEN GENERAL</b> (no B-01, B-02…)<br>'+
+      '3. Segundo desplegable: <b>Valores separados por comas (.csv)</b><br>'+
+      '4. Clic en <b>Publicar</b> → copia la URL nueva y pégala aquí.<br>'+
+      '<span style="color:#fbbf24">La URL debe empezar con: https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv</span>'
+    );
+  }
 }
 
 // ── DIAGNÓSTICO: prueba cada proxy y muestra resultado ─
@@ -1182,25 +1196,32 @@ async function diagSheets(){
   const url=(document.getElementById('sheets-url').value.trim()||'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv');
   const st=document.getElementById('sync-status');
   st.style.display='block';st.style.color='var(--muted)';
-  st.innerHTML='🔬 Probando conexión directa y proxies…';
+  st.innerHTML='🔬 Probando conexión directa y '+CORS_PROXIES.length+' proxies en paralelo…';
   const urlCB=addCacheBust(url);
   let html='<b>🔬 Diagnóstico de conectividad:</b><br><br>';
   // Directo
   try{
-    const r=await fetch(urlCB,{cache:'no-cache'});
+    const r=await fetchWithTimeout(urlCB,{cache:'no-store',mode:'cors'},8000);
     const t=await r.text();
     html+=`<span style="color:${looksLikeCSV(t)?'var(--green)':'var(--yellow)'}">🌐 Directo: HTTP ${r.status} — ${looksLikeCSV(t)?'CSV válido ✅':'no es CSV ⚠️ ('+t.substring(0,60)+')'}</span><br>`;
-  }catch(e){html+=`<span style="color:var(--muted)">🌐 Directo: bloqueado por CORS (normal en archivo local) ℹ️</span><br>`;}
-  // Proxies
-  for(const proxy of CORS_PROXIES){
-    try{
-      const r=await fetch(proxy.mk(urlCB),{cache:'no-cache'});
-      let t=await r.text();
-      if(proxy.json){try{const j=JSON.parse(t);if(j&&j.contents)t=j.contents;}catch(e2){}}
-      const ok=looksLikeCSV(t);
-      html+=`<span style="color:${ok?'var(--green)':'var(--yellow)'}">🔀 [${proxy.name}]: HTTP ${r.status} — ${ok?'CSV válido ✅':'no es CSV ⚠️ ("'+t.substring(0,60)+'")'}</span><br>`;
-    }catch(e){html+=`<span style="color:var(--red)">🔀 [${proxy.name}]: Error — ${e.message.substring(0,80)}</span><br>`;}
-  }
+  }catch(e){html+=`<span style="color:var(--muted)">🌐 Directo: ${e.name==='AbortError'?'timeout ⏱':'bloqueado por CORS ℹ️'}</span><br>`;}
+  // Proxies en paralelo
+  const results=await Promise.allSettled(CORS_PROXIES.map(async proxy=>{
+    const r=await fetchWithTimeout(proxy.mk(urlCB),{cache:'no-store'},9000);
+    let t=await r.text();
+    if(proxy.json){try{const j=JSON.parse(t);if(j&&j.contents)t=j.contents;}catch(e2){}}
+    return{proxy,ok:r.ok,status:r.status,isCSV:looksLikeCSV(t),preview:t.substring(0,60)};
+  }));
+  results.forEach((res,i)=>{
+    const p=CORS_PROXIES[i];
+    if(res.status==='fulfilled'){
+      const d=res.value;
+      html+=`<span style="color:${d.isCSV?'var(--green)':'var(--yellow)'}">🔀 [${p.name}]: HTTP ${d.status} — ${d.isCSV?'CSV válido ✅':'no es CSV ⚠️ ("'+d.preview+'")'}</span><br>`;
+    } else {
+      const msg=res.reason?.name==='AbortError'?'timeout ⏱':res.reason?.message?.substring(0,70)||'error';
+      html+=`<span style="color:var(--red)">🔀 [${p.name}]: Error — ${msg}</span><br>`;
+    }
+  });
   html+='<br><span style="color:var(--muted);font-size:11px">Si al menos un proxy muestra ✅ CSV válido, presiona 🔄 Importar.</span>';
   html+='<br><span style="color:var(--accent);font-size:11px">💡 <b>Tip:</b> Si todos fallan, verifica que la URL empiece con <code>https://docs.google.com/spreadsheets/d/e/2PACX-...</code> y que la hoja esté publicada como CSV.</span>';
   st.style.color='var(--accent)';st.innerHTML=html;
@@ -1340,6 +1361,9 @@ async function doSync(){
     }
 
     // ── Actualizar D.stores desde los datos del Sheets ──
+    // Eliminar novedades previamente importadas desde Sheets para reemplazarlas
+    D.novs=D.novs.filter(n=>!n.id?.startsWith('gs'));
+
     allStores.forEach(ps=>{
       // Mapear novEst -> nov (campo que usa D.stores)
       const novVal=ps.novEst||'OK';
@@ -1353,6 +1377,17 @@ async function doSync(){
         // Agregar nueva bodega
         D.stores.push({id:ps.id,resp:ps.resp||'Jessica',fal:ps.fal,nov:novVal});
       }
+      // Generar novedades sintéticas desde columnas mensuales si hay faltantes
+      if(ps.fal>0){
+        D.novs.push({
+          id:'gs'+Date.now()+'_'+ps.id,
+          b:ps.id,
+          e:'🔴',
+          n:'FALTANTE (desde Sheets) — Total: '+ps.fal,
+          s:'',
+          f:new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'/')
+        });
+      }
     });
 
     save();
@@ -1365,6 +1400,12 @@ async function doSync(){
     else if(activeTab==='pendientes')renderTasks();
     else if(activeTab==='notas'){renderNotasList();renderNotaDetail();}
     else if(activeTab==='datos')renderStoresTable();
+    // Si Firebase está conectado, propagar a todos los usuarios
+    if(fbConnected&&fbRef){
+      _ignoreRemote=true;
+      fbRef.set({stores:D.stores,novs:D.novs,tasks:D.tasks,notes:D.notes,_ts:Date.now()})
+        .catch(e=>console.warn('Firebase sync push error:',e));
+    }
 
     markSyncOk();
     const ts=new Date().toLocaleTimeString('es-CO');
@@ -1476,7 +1517,10 @@ setInterval(updateClock,1000);
 (function(){
   const DEFAULT_SHEETS_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv';
   const inp=document.getElementById('sheets-url');
-  if(inp&&!inp.value)inp.value=DEFAULT_SHEETS_URL;
+  if(inp){
+    const saved=localStorage.getItem('sheets_url_tiendas');
+    inp.value=saved||DEFAULT_SHEETS_URL;
+  }
   // Cargar config Firebase guardada y auto-reconectar
   fbLoadConfig();
   const saved=JSON.parse(localStorage.getItem('fb_config_tiendas')||'{}');
