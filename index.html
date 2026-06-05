@@ -86,6 +86,7 @@ canvas{max-height:200px;}
   <div class="header-right">
     <button class="btn btn-csv" onclick="exportCSV()">📤 CSV</button>
     <button class="btn btn-red" onclick="exportPDF()">🖨 PDF</button>
+    <button class="btn" style="background:#0ea5e8;color:#000;font-size:12px;padding:7px 13px;font-weight:700" onclick="quickSync()" id="btn-quick-sync" title="Sincronizar Google Sheets ahora">🔄 Sync</button>
     <button class="btn" style="background:#16a34a;color:#fff;font-size:13px;padding:8px 16px" onclick="openExcelModal()">📂 Cargar Excel</button>
     <input type="file" id="excel-input-hdr" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
     <div style="text-align:right;font-size:11px;color:var(--muted)">
@@ -363,6 +364,26 @@ canvas{max-height:200px;}
         <span style="color:var(--muted);font-size:11px">El dashboard detecta automáticamente cuál es cuál por los nombres de columna.</span>
       </div>
       <input id="sheets-url" style="width:100%;margin-bottom:10px;font-size:11px;font-family:monospace" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-…/pub?output=csv" oninput="localStorage.setItem('sheets_url_tiendas',this.value)">
+
+      <!-- ── CLOUDFLARE WORKER ── -->
+      <div id="cf-worker-box" style="background:#0f172a;border:1px solid #0ea5e8;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:16px">☁️</span>
+          <strong style="color:#0ea5e8">Cloudflare Worker (proxy estable — recomendado)</strong>
+          <span id="cf-status-badge" style="font-size:11px;padding:2px 8px;border-radius:4px;background:#14532d40;color:#4ade80;display:none">✅ Activo</span>
+        </div>
+        <div style="color:#94a3b8;margin-bottom:8px;font-size:11px;line-height:1.6">
+          Sin worker → usa proxies gratuitos que se caen. Con worker → conexión directa tuya, 100% estable.<br>
+          <a href="https://workers.cloudflare.com" target="_blank" style="color:#0ea5e8">Crear worker gratis en workers.cloudflare.com</a> → pega el script entregado → copia la URL aquí.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="cf-worker-url" style="flex:1;font-size:11px;font-family:monospace;background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:6px 10px;border-radius:4px" placeholder="https://tu-worker.tunombre.workers.dev">
+          <button onclick="saveCFWorker()" style="background:#0ea5e8;color:#000;border:none;padding:7px 14px;border-radius:4px;font-weight:700;cursor:pointer;font-size:12px">Guardar</button>
+          <button onclick="testCFWorker()" style="background:#1e293b;color:#0ea5e8;border:1px solid #0ea5e8;padding:7px 12px;border-radius:4px;cursor:pointer;font-size:12px">Probar</button>
+        </div>
+        <div id="cf-test-result" style="margin-top:6px;font-size:11px;display:none"></div>
+      </div>
+
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="btn btn-accent" onclick="doSync()">🔄 Importar desde Sheets</button>
         <button class="btn" onclick="diagSheets()" style="background:var(--surf2);color:var(--muted);border:1px solid var(--brd);font-size:11px;padding:6px 12px">🔬 Diagnóstico</button>
@@ -636,7 +657,7 @@ try{const s=localStorage.getItem(STORAGE_KEY);if(s){const p=JSON.parse(s);if(p.s
 
 // ── HELPERS ──────────────────────────────────────────
 function parseDateCO(s){if(!s)return null;const m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return null;return new Date(+m[3],+m[2]-1,+m[1]);}
-function daysAgo(s){const d=parseDateCO(s);if(!d)return 0;return Math.floor((new Date('2026-05-27')-d)/(864e5));}
+function daysAgo(s){const d=parseDateCO(s);if(!d)return 0;return Math.floor((Date.now()-d.getTime())/(864e5));}
 function parseAmt(t){const n=t.replace(/\./g,'').match(/\$?\s*(\d{3,})/g);if(!n)return 0;const v=n.map(x=>parseInt(x.replace(/[$\s]/g,''))).filter(x=>x>=1000&&x<=5e7);return v.length?Math.max(...v):0;}
 function fmtCOP(n){if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+(n/1e3).toFixed(0)+'K';return'$'+n;}
 function badge(v){const m={OK:'badge-ok',LEVE:'badge-leve',CRITICO:'badge-crit'};return`<span class="badge ${m[v]||'badge-leve'}">${v==='OK'?'SIN NOVEDAD':v==='LEVE'?'LEVE':'CRÍTICO'}</span>`;}
@@ -1021,30 +1042,58 @@ function applyPaste(){
   if(pasteData.stores.length){pasteData.stores.forEach(ps=>{const i=D.stores.findIndex(s=>s.id===ps.id);if(i>=0)D.stores[i]=ps;else D.stores.push(ps);});}
   save();clearPasteResult();document.getElementById('paste-area').value='';updateHeader();showToast(`Importado: ${pasteData.novs.length} noveds, ${pasteData.stores.length} bodegas`,'ok');pasteData=null;}
 
-let syncInterval=null;
-let syncFailCount=0;
-function markSyncOk(){
-  const now=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-  syncFailCount=0;
-  const el=document.getElementById('sync-last-time');if(el)el.textContent=now;
-  const sl=document.getElementById('sync-last');if(sl)sl.style.display='inline';
+// toggleAutoSync y markSyncOk definidas más abajo junto al init
+// ── CLOUDFLARE WORKER — guardar y probar ─────────────
+function saveCFWorker(){
+  const url=document.getElementById('cf-worker-url').value.trim();
+  if(!url){showToast('Ingresa la URL del worker');return;}
+  if(!url.startsWith('http')){showToast('URL inválida');return;}
+  localStorage.setItem('cf_worker_url',url);
+  const badge=document.getElementById('cf-status-badge');
+  if(badge){badge.style.display='inline';badge.textContent='✅ Guardado';}
+  showToast('✅ Cloudflare Worker guardado — se usará como proxy principal');
 }
-function toggleAutoSync(){
-  const on=document.getElementById('auto-sync').checked;
-  document.getElementById('sync-active').style.display=on?'inline-block':'none';
-  if(on){
-    // Lanzar primer sync inmediato, luego cada 60s
-    doSync();
-    syncInterval=setInterval(()=>{
-      const url=document.getElementById('sheets-url').value.trim();
-      if(!url){clearInterval(syncInterval);document.getElementById('auto-sync').checked=false;document.getElementById('sync-active').style.display='none';return;}
-      doSync();
-    },60000);
-  }else{
-    clearInterval(syncInterval);
-    syncFailCount=0;
-    const sl=document.getElementById('sync-last');if(sl)sl.style.display='none';
+
+async function testCFWorker(){
+  const url=document.getElementById('cf-worker-url').value.trim()||localStorage.getItem('cf_worker_url')||'';
+  const res=document.getElementById('cf-test-result');
+  if(!url){showToast('Primero ingresa la URL del worker');return;}
+  res.style.display='block';res.style.color='#94a3b8';res.textContent='⏳ Probando worker…';
+  try{
+    const r=await fetchWithTimeout(url+'?cb='+Date.now(),{cache:'no-store'},8000);
+    if(!r.ok){res.style.color='#f87171';res.textContent='❌ HTTP '+r.status;return;}
+    const t=await r.text();
+    if(looksLikeCSV(t)){
+      const rows=t.split('\n').length;
+      res.style.color='#4ade80';
+      res.textContent='✅ Worker OK — CSV válido recibido ('+rows+' filas, '+t.length+' bytes)';
+      const badge=document.getElementById('cf-status-badge');
+      if(badge){badge.style.display='inline';badge.textContent='✅ Activo';}
+      localStorage.setItem('cf_worker_url',url);
+    }else{
+      res.style.color='#fbbf24';
+      res.textContent='⚠️ Worker responde pero no es CSV: '+t.substring(0,80);
+    }
+  }catch(e){
+    res.style.color='#f87171';
+    res.textContent='❌ Error: '+(e.name==='AbortError'?'Timeout (8s)':e.message);
   }
+}
+
+// ── QUICK SYNC desde header ───────────────────────────
+async function quickSync(){
+  const btn=document.getElementById('btn-quick-sync');
+  if(btn){btn.textContent='⏳…';btn.disabled=true;}
+  // Asegurarse de que la URL esté cargada en el campo antes de llamar doSync
+  const inp=document.getElementById('sheets-url');
+  if(inp&&!inp.value.trim()){
+    const saved=localStorage.getItem('sheets_url_tiendas')||FIXED_SHEETS_URL;
+    inp.value=saved;
+  }
+  try{
+    await doSync();
+  }catch(e){}
+  if(btn){btn.textContent='🔄 Sync';btn.disabled=false;}
 }
 
 function parseCSVLine(line){
@@ -1112,13 +1161,14 @@ function parseSheetStores(rows){
     sp.push({id:idV,resp:respV,fal:falV,nov:novN});});
   return sp;}
 
-// ── PROXIES CORS para Google Sheets ───────────────────
+// ── PROXY CLOUDFLARE WORKER (principal) + fallbacks ───
+// Reemplaza tu URL de worker aquí después de desplegar en Cloudflare:
+let CF_WORKER_URL = localStorage.getItem('cf_worker_url') || '';
+
 const CORS_PROXIES=[
   {name:'codetabs',    mk: url=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`},
   {name:'allorigins',  mk: url=>`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, json:true},
   {name:'corsproxy.io',mk: url=>`https://corsproxy.io/?${encodeURIComponent(url)}`},
-  {name:'cors.sh',     mk: url=>`https://proxy.cors.sh/${url}`},
-  {name:'htmldriven',  mk: url=>`https://crossorigin.me/${url}`},
 ];
 
 // Agrega cachebust para evitar cache de Google (~5 min)
@@ -1148,7 +1198,18 @@ async function fetchWithTimeout(url,opts={},ms=8000){
 async function fetchSheet(csvUrl){
   const diagLog=[];
 
-  // 1. Intento directo (funciona en GitHub Pages con URLs CORS-habilitadas)
+  // 0. Cloudflare Worker (si está configurado) — MÁXIMA PRIORIDAD
+  const workerUrl=localStorage.getItem('cf_worker_url')||'';
+  if(workerUrl){
+    try{
+      const r=await fetchWithTimeout(workerUrl+'?cb='+Date.now(),{cache:'no-store'},8000);
+      if(r.ok){const t=await r.text();if(looksLikeCSV(t)){console.log('[Sheets] OK via CF Worker');return t;}
+      diagLog.push('CF Worker: no es CSV');}
+      else{diagLog.push('CF Worker HTTP '+r.status);}
+    }catch(e){diagLog.push('CF Worker: '+(e.name==='AbortError'?'timeout':e.message.substring(0,60)));}
+  }
+
+  // 1. Intento directo
   try{
     const r=await fetchWithTimeout(csvUrl,{cache:'no-store',mode:'cors'},8000);
     if(r.ok){const t=await r.text();if(looksLikeCSV(t)){console.log('[Sheets] OK directo');return t;}
@@ -1193,7 +1254,8 @@ async function fetchSheet(csvUrl){
 
 // ── DIAGNÓSTICO: prueba cada proxy y muestra resultado ─
 async function diagSheets(){
-  const url=(document.getElementById('sheets-url').value.trim()||'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv');
+  const FIXED_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv';
+  const url=(document.getElementById('sheets-url').value.trim()||FIXED_URL);
   const st=document.getElementById('sync-status');
   st.style.display='block';st.style.color='var(--muted)';
   st.innerHTML='🔬 Probando conexión directa y '+CORS_PROXIES.length+' proxies en paralelo…';
@@ -1228,10 +1290,105 @@ async function diagSheets(){
 }
 
 async function doSync(){
-  const url=document.getElementById('sheets-url').value.trim();
-  if(!url){showToast('Ingresa la URL de Google Sheets');return;}
   const st=document.getElementById('sync-status');
   st.style.display='block';st.style.color='var(--muted)';
+
+  const workerUrl=localStorage.getItem('cf_worker_url')||'';
+
+  if(workerUrl){
+    st.innerHTML='<b>⏳</b> Descargando Excel completo desde Cloudflare Worker…';
+    try{
+      const r=await fetchWithTimeout(workerUrl+'?cb='+Date.now(),{cache:'no-store'},25000);
+      if(!r.ok) throw new Error('Worker HTTP '+r.status);
+
+      const arrayBuf=await r.arrayBuffer();
+      st.innerHTML='<b>⏳</b> Excel recibido ('+Math.round(arrayBuf.byteLength/1024)+' KB). Procesando todas las hojas…';
+
+      const doProcess=()=>{
+        try{
+          const wb=XLSX.read(arrayBuf,{type:'array',cellDates:true});
+          // Reusar _parseWorkbook pero aplicar directo a D sin modal
+          const SKIP=new Set(['📊 RESUMEN GENERAL']);
+          const bodegaSheets=wb.SheetNames.filter(s=>!SKIP.has(s));
+          let allNovs=[],storesMap={};let nid=0;
+
+          bodegaSheets.forEach(shName=>{
+            const bid=shName.trim();
+            const resp=EXCEL_RESP_MAP[bid]||'Jessica';
+            const ws=wb.Sheets[shName];
+            const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:'dd/mm/yyyy'});
+            let faltantesCount=0;
+            aoa.forEach(row=>{
+              if(!row||row.length<5)return;
+              const nov=typeof row[2]==='string'?row[2].trim():'';
+              const sol=typeof row[3]==='string'?row[3].trim():'';
+              const fecha=_fmtDate(row[5]||row[4]);
+              if(!nov||!fecha)return;
+              const novUp=nov.toUpperCase();
+              if(['NOVEDAD','SIN NOVEDAD','','SEMANA'].includes(novUp))return;
+              if(novUp.includes('RESUMEN')||novUp.includes('CONTROL DE TIENDAS')||novUp.includes('📅')||novUp.startsWith('SEM '))return;
+              if(!fecha.match(/\d{2}\/\d{2}\/\d{4}/))return;
+              let e='✖';
+              if(novUp.includes('FALTANTE'))e='🔴';
+              else if(novUp.includes('SOBRANTE'))e='🟡';
+              if(e==='🔴')faltantesCount++;
+              if(e==='🔴'||e==='🟡'){nid++;allNovs.push({id:'xl'+nid,b:bid,e,n:nov,s:sol,f:fecha});}
+            });
+            const est=faltantesCount>=4?'CRITICO':faltantesCount>=1?'LEVE':'OK';
+            storesMap[bid]={id:bid,resp,fal:faltantesCount,nov:est};
+          });
+
+          const allStores=Object.values(storesMap);
+          if(!allStores.length) throw new Error('No se encontraron hojas de bodegas en el Excel');
+
+          // Reemplazar D completamente con datos frescos
+          D.stores=allStores;
+          D.novs=allNovs;
+          save();
+          updateHeader();
+          const activeTab=document.querySelector('.tab-btn.active')?.dataset?.tab;
+          if(activeTab==='resumen')renderResumen();
+          else if(activeTab==='financiero')renderFinanciero();
+          else if(activeTab==='rendimiento')renderRendimiento();
+          else if(activeTab==='clasif')renderClasif();
+          else if(activeTab==='datos')renderStoresTable();
+
+          // Push a Firebase
+          if(fbConnected&&fbRef){
+            _ignoreRemote=true;
+            fbRef.set({stores:D.stores,novs:D.novs,tasks:D.tasks,notes:D.notes,_ts:Date.now()})
+              .catch(e=>console.warn('FB push error:',e));
+          }
+
+          markSyncOk();
+          const ts=new Date().toLocaleTimeString('es-CO');
+          st.style.color='var(--green)';
+          st.innerHTML=`✅ Sync completo — ${allStores.length} bodegas · ${allNovs.length} novedades · ${ts}`;
+          showToast(`✅ ${allStores.length} bodegas · ${allNovs.length} novedades`,'ok');
+        }catch(err){
+          st.style.color='var(--red)';
+          st.innerHTML='<b>❌ Error procesando Excel:</b> '+err.message;
+        }
+      };
+
+      if(typeof XLSX!=='undefined'){doProcess();}
+      else{
+        st.innerHTML='<b>⏳</b> Cargando librería Excel…';
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload=doProcess;
+        s.onerror=()=>{st.style.color='var(--red)';st.innerHTML='❌ No se pudo cargar librería XLSX';};
+        document.head.appendChild(s);
+      }
+      return;
+    }catch(e){
+      st.innerHTML='<b>⚠️ Worker falló:</b> '+e.message+' — intentando con CSV…';
+    }
+  }
+
+  // ── FALLBACK: CSV solo RESUMEN GENERAL ──
+  const url=document.getElementById('sheets-url').value.trim();
+  if(!url){showToast('Ingresa la URL de Google Sheets');return;}
   st.innerHTML='<b>⏳ Paso 1/3:</b> Descargando CSV…';
 
   try{
@@ -1514,13 +1671,68 @@ updateClock();
 setInterval(updateClock,1000);
 
 // ── PRE-CARGAR URL GOOGLE SHEETS ──────────────────────
+const FIXED_SHEETS_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv';
+let _autoSyncTimer=null;
+
+function toggleAutoSync(){
+  const chk=document.getElementById('auto-sync');
+  const active=document.getElementById('sync-active');
+  const last=document.getElementById('sync-last');
+  if(chk.checked){
+    active.style.display='inline';last.style.display='inline';
+    localStorage.setItem('sheets_autosync','1');
+    if(_autoSyncTimer)clearInterval(_autoSyncTimer);
+    _autoSyncTimer=setInterval(()=>doSync(),60000);
+    doSync(); // sync inmediato al activar
+  } else {
+    active.style.display='none';
+    localStorage.removeItem('sheets_autosync');
+    if(_autoSyncTimer){clearInterval(_autoSyncTimer);_autoSyncTimer=null;}
+  }
+}
+
+function markSyncOk(){
+  const t=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el=document.getElementById('sync-last-time');if(el)el.textContent=t;
+  localStorage.setItem('sheets_last_sync',t);
+}
+
 (function(){
-  const DEFAULT_SHEETS_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9ja336IQAziSEUUtgkSAjq29OoYLdDlIby5MqwHeHz65ZYjypwe0WXekYAa2Nuw/pub?output=csv';
   const inp=document.getElementById('sheets-url');
   if(inp){
     const saved=localStorage.getItem('sheets_url_tiendas');
-    inp.value=saved||DEFAULT_SHEETS_URL;
+    inp.value=saved||FIXED_SHEETS_URL;
+    if(!saved)localStorage.setItem('sheets_url_tiendas',FIXED_SHEETS_URL);
   }
+
+  // Cargar URL del Cloudflare Worker si existe
+  const cfUrl=localStorage.getItem('cf_worker_url')||'';
+  const cfInp=document.getElementById('cf-worker-url');
+  if(cfInp&&cfUrl){
+    cfInp.value=cfUrl;
+    const badge=document.getElementById('cf-status-badge');
+    if(badge){badge.style.display='inline';}
+  }
+
+  // Restaurar estado auto-sync
+  const wasAutoSync=localStorage.getItem('sheets_autosync')==='1';
+  if(wasAutoSync){
+    const chk=document.getElementById('auto-sync');
+    const active=document.getElementById('sync-active');
+    const last=document.getElementById('sync-last');
+    if(chk){chk.checked=true;}
+    if(active)active.style.display='inline';
+    if(last)last.style.display='inline';
+    const lastT=localStorage.getItem('sheets_last_sync');
+    const lastEl=document.getElementById('sync-last-time');
+    if(lastEl&&lastT)lastEl.textContent=lastT;
+    // Arrancar el timer
+    if(_autoSyncTimer)clearInterval(_autoSyncTimer);
+    _autoSyncTimer=setInterval(()=>doSync(),60000);
+    // Sync inmediato al cargar si tenía auto-sync activo
+    setTimeout(()=>doSync(),2000);
+  }
+
   // Cargar config Firebase guardada y auto-reconectar
   fbLoadConfig();
   const saved=JSON.parse(localStorage.getItem('fb_config_tiendas')||'{}');
